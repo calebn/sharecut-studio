@@ -619,7 +619,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             payload=p.ApplyDuckingPayload,
             handler=markers.apply_ducking,
             host_only_reason="writes volume envelopes on several tracks at once",
-            gui=NO_GUI_SENDER,
+            gui=GUI_SENT,
             mcp=named("apply_ducking_tool"),
             cli=named("podcast edit duck", GENERIC_CLI),
         ),

@@ -183,6 +183,10 @@ const COVERED: Record<string, Proof> = {
     file: "commands/roomToneBed.test.ts",
     test: "falls back to the track the inspector shows",
   },
+  "track.duckUnderSpeech": {
+    file: "commands/ducking.test.ts",
+    test: "applies the token of the plan the inspector showed, without planning again, and offers Undo",
+  },
   "track.splitSpeakers": {
     file: "stages/prepare/usePrepareSources.test.tsx",
     test: "splits with the chosen voice count, then refreshes and says it with Undo",

@@ -50,6 +50,7 @@
   ["track.splitSpeakers", "Select a track to split"],
   ["track.extractRoomTone", "No track selected in inspector"],
   ["track.clearRoomTone", "No track selected in inspector"],
+  ["track.duckUnderSpeech", null],
   ["track.moveUp", "No track selected in inspector"],
   ["track.moveDown", "No track selected in inspector"],
   ["media.import", null],

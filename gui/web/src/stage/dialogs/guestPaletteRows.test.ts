@@ -83,6 +83,7 @@ const HOST_ONLY_AND_RECORD = [
   "share.manage",
   "stage.prepare",
   "stage.record",
+  "track.duckUnderSpeech",
   "track.splitSpeakers",
   "transcript.adjustTiming",
 ];

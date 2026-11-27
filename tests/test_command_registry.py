@@ -471,6 +471,14 @@ def test_a_comment_delete_is_sent_by_the_bar_and_keeps_its_agent_twins() -> None
     assert spec.cli == named("podcast comment delete")
 
 
+def test_ducking_is_sent_by_the_studio_control_and_keeps_its_agent_twins() -> None:
+    spec = COMMANDS["ApplyDucking"]
+    assert spec.gui is GUI_SENT
+    assert spec.mcp == named("apply_ducking_tool")
+    assert spec.cli == named("podcast edit duck", GENERIC_CLI)
+    assert spec.host_only_reason is not None
+
+
 def test_no_audit_placeholder_is_left() -> None:
     assert not hasattr(registry, "UNAUDITED")
     for command_type, spec in COMMANDS.items():

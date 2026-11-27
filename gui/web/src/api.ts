@@ -49,11 +49,17 @@ export {
 } from "./api/comments";
 export type { DawFormat } from "./api/dawExport";
 export { loadDawFormats, startDawSession } from "./api/dawExport";
+export type {
+  DuckingOutcome,
+  DuckingPlan,
+  DuckingTrackPlan,
+} from "./api/documentEdits";
 export {
   acceptSessionSuggestionCommand,
   addChapter,
   addSocialClip,
   addTrackCommand,
+  applyDuckingCommand,
   applyFadeRecommendations,
   applySuggestedActions,
   approveEdits,
@@ -69,6 +75,7 @@ export {
   moveClips,
   moveSegment,
   pasteSegment,
+  previewDucking,
   proposeSocialClips,
   redoHistory,
   rejectEdits,

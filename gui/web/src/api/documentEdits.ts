@@ -28,8 +28,10 @@ import {
 } from "../types/project";
 import { ApiError } from "../utils/apiError";
 import type { EditMode, TrimEdge } from "../utils/clipEdgePreview";
+import { documentClientId, newCommandId } from "../utils/documentClient";
 import { type ClipFadeCurves, clipEdgeCurve } from "../utils/fadeCurves";
 import { type HeldCut, type ReviewOutcome } from "../utils/pendingReviewPass";
+import { postHostDocumentCommand } from "./documentTransport";
 import { apiFetch, HOST_KEY } from "./http";
 import { loadDocumentState } from "./project";
 
@@ -723,6 +725,123 @@ export async function setEnvelope(
     if (useDawStore.getState().projectPath === projectPath) redisplayDrafts();
   }
   return replyHistoryHead(result);
+}
+
+/** One music track's share of a ducking plan. */
+export type DuckingTrackPlan = {
+  trackId: string;
+  /** The saved dips differ from what the plan would write. */
+  changed: boolean;
+  /** Dips the earlier run wrote that this plan replaces. */
+  replacedEarlierDips: number;
+  /** The plan thinned its dips to fit the point limit. */
+  simplified: boolean;
+};
+
+/** What a ducking run would write, from the host's dry run or the apply reply. */
+export type DuckingPlan = {
+  planToken: string;
+  depthDb: number;
+  tracks: DuckingTrackPlan[];
+};
+
+export type DuckingOutcome = DuckingPlan & {
+  applied: boolean;
+  /** The entry the apply left at the head; null when nothing changed or the send was queued. */
+  historyHead: HistoryEntryId | null;
+  /** The host was out of reach, so the send waits in the queue. */
+  queued: boolean;
+};
+
+function duckingPlan(result: unknown): DuckingPlan {
+  const rows = isSuggestionRecord(result) ? result.tracks : null;
+  if (
+    !isSuggestionRecord(result) ||
+    typeof result.plan_token !== "string" ||
+    typeof result.depth_db !== "number" ||
+    !Array.isArray(rows)
+  )
+    throw new Error("The ducking reply is missing its plan.");
+  return {
+    planToken: result.plan_token,
+    depthDb: result.depth_db,
+    tracks: rows.flatMap((row): DuckingTrackPlan[] =>
+      isSuggestionRecord(row) && typeof row.track_id === "string"
+        ? [
+            {
+              trackId: row.track_id,
+              changed: row.changed === true,
+              replacedEarlierDips:
+                typeof row.replaced_generated === "number"
+                  ? row.replaced_generated
+                  : 0,
+              simplified: row.coarsened === true,
+            },
+          ]
+        : [],
+    ),
+  };
+}
+
+function commandResult(reply: Record<string, unknown>): unknown {
+  const command = reply.command;
+  const payload = isSuggestionRecord(command) ? command.payload : null;
+  return isSuggestionRecord(payload) ? payload.result : null;
+}
+
+/**
+ * Plan "Duck music under speech" without writing: the tracks it would change
+ * and the token that lets the apply refuse a project that moved on. Sent
+ * straight to the host, not queued: it saves nothing and never replays.
+ * A refusal throws an `ApiError` carrying the host's code.
+ */
+export async function previewDucking(
+  projectPath: string,
+  signal?: AbortSignal,
+): Promise<DuckingPlan> {
+  const body = {
+    client_id: documentClientId(),
+    command_id: newCommandId(),
+    type: DocumentCommand.ApplyDucking,
+    payload: { dry_run: true },
+  };
+  const reply = await postHostDocumentCommand(projectPath, body);
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  if (!reply.ok) throw reply.failure;
+  return duckingPlan(commandResult(reply.data));
+}
+
+/**
+ * Duck every music track under speech, writing the plan the person saw. A
+ * `planToken` from `previewDucking` makes the host refuse (409) when the
+ * project changed since; without one the host plans and applies in one step.
+ * One undo step for every track.
+ */
+export async function applyDuckingCommand(
+  projectPath: string,
+  planToken?: string,
+): Promise<DuckingOutcome> {
+  const reply = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.ApplyDucking,
+    planToken === undefined ? {} : { expected_plan_token: planToken },
+  );
+  if (reply.queued === true)
+    return {
+      planToken: planToken ?? "",
+      depthDb: 0,
+      tracks: [],
+      applied: false,
+      historyHead: null,
+      queued: true,
+    };
+  const result = commandResult(reply);
+  return {
+    ...duckingPlan(result),
+    applied: isSuggestionRecord(result) && result.applied === true,
+    historyHead: replyHistoryHead(reply),
+    queued: false,
+  };
 }
 
 async function refreshProjectPhase(

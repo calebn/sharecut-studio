@@ -960,6 +960,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Takes the cut room-tone bed off the inspector track (args { trackId? }); a recorded bed is never removed. ClearExtractedRoomToneBed, one undo step",
   },
+  "track.duckUnderSpeech": {
+    id: "track.duckUnderSpeech",
+    mutates: true,
+    category: "edit",
+    label: "Duck music under speech",
+    keywords: ["duck", "ducking", "music", "lower", "volume", "dialogue"],
+    when: "hostProjectLoaded",
+    notes:
+      "Lowers every music track while people speak. Plans with a dry run, then applies that plan (args { planToken? } from the inspector row). ApplyDucking, one undo step for all tracks; the saved dips are not re-timed by later cuts, so run it again after one",
+  },
   "track.reorder": {
     id: "track.reorder",
     mutates: true,

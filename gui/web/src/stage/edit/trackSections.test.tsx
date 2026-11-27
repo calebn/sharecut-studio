@@ -9,8 +9,11 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  applyDuckingCommand,
   clearExtractedRoomToneBedCommand,
+  type DuckingPlan,
   extractRoomToneBedCommand,
+  previewDucking,
   setEffectBypass,
 } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -21,6 +24,7 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { SAVED_MUTE_READ_ONLY_NOTE } from "../../tracks/trackMuteCopy";
 import type { ProjectView, TrackView } from "../../types/project";
+import { ApiError } from "../../utils/apiError";
 import { inspectorHeading } from "./inspectorHeading";
 import { SectionsBody } from "./SectionsBody";
 
@@ -32,6 +36,8 @@ vi.mock("../../api", async (importOriginal) => ({
   setTrackMetaCommand: (...args: unknown[]) => setTrackMetaCommand(...args),
   setTrackFaderCommand: (...args: unknown[]) => setTrackFaderCommand(...args),
   setEffectBypass: vi.fn(async () => undefined),
+  previewDucking: vi.fn(),
+  applyDuckingCommand: vi.fn(),
   extractRoomToneBedCommand: vi.fn(async () => ({
     done: true,
     historyHead: null,
@@ -73,6 +79,9 @@ function open(
 }
 
 beforeEach(() => {
+  vi.mocked(previewDucking).mockReset();
+  vi.mocked(previewDucking).mockReturnValue(new Promise(() => {}));
+  vi.mocked(applyDuckingCommand).mockReset();
   setTrackMetaCommand.mockReset();
   setTrackFaderCommand.mockClear();
   vi.mocked(setEffectBypass).mockClear();
@@ -643,6 +652,128 @@ describe("track content", () => {
       expect(screen.queryByText("Room tone")).toBeNull();
       open(withAudio, [], "edit");
       expect(screen.queryByText("Room tone")).toBeNull();
+    });
+  });
+
+  describe("Duck music under speech", () => {
+    const music: TrackView = { ...hostTrack, role: "music", id: "bed" };
+    const plan = (changed: boolean, replacedEarlierDips = 0): DuckingPlan => ({
+      planToken: "plan-1",
+      depthDb: -18,
+      tracks: [
+        { trackId: "bed", changed, replacedEarlierDips, simplified: false },
+      ],
+    });
+    const wait = { timeout: 3000 };
+
+    it("checks, then offers to lower the music by the depth the host would use", async () => {
+      vi.mocked(previewDucking).mockResolvedValue(plan(true));
+      open(music);
+      expect(screen.getByText("Checking your music tracks...")).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Duck music under speech" }),
+      ).toBeDisabled();
+      expect(
+        await screen.findByText(
+          "Lowers 1 music track by 18 dB while people speak. Your own volume points stay.",
+          {},
+          wait,
+        ),
+      ).toBeVisible();
+      expect(previewDucking).toHaveBeenCalledExactlyOnceWith("/tmp/ep.json");
+      expect(
+        screen.getByRole("button", { name: "Duck music under speech" }),
+      ).toBeEnabled();
+    });
+
+    it("applies the plan it showed, by its token", async () => {
+      const user = userEvent.setup();
+      vi.mocked(previewDucking).mockResolvedValue(plan(true));
+      vi.mocked(applyDuckingCommand).mockResolvedValue({
+        ...plan(true),
+        applied: true,
+        historyHead: null,
+        queued: false,
+      });
+      open(music);
+      const button = await screen.findByRole(
+        "button",
+        { name: "Duck music under speech" },
+        wait,
+      );
+      await waitFor(() => expect(button).toBeEnabled(), wait);
+      await user.click(button);
+      expect(applyDuckingCommand).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/ep.json",
+        "plan-1",
+      );
+    });
+
+    it("says ducking may be out of date when earlier dips would be replaced, and offers Duck again", async () => {
+      vi.mocked(previewDucking).mockResolvedValue(plan(true, 4));
+      open(music);
+      expect(
+        await screen.findByText(
+          "Ducking may be out of date. Duck again.",
+          { selector: "p" },
+          wait,
+        ),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Duck again" })).toBeEnabled();
+    });
+
+    it("says the music already follows the speech, with the action held back", async () => {
+      vi.mocked(previewDucking).mockResolvedValue(plan(false, 4));
+      open(music);
+      expect(
+        await screen.findByText(
+          "Music already follows the speech.",
+          { selector: "p" },
+          wait,
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Duck music under speech" }),
+      ).toBeDisabled();
+    });
+
+    it("says why there is nothing to duck, without calling it an error", async () => {
+      vi.mocked(previewDucking).mockRejectedValue(
+        new ApiError("x", "ducking_no_targets", 400),
+      );
+      open(music);
+      expect(
+        await screen.findByText(
+          "There is no music to lower yet. Add a music track first.",
+          {},
+          wait,
+        ),
+      ).toBeVisible();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("still lets the host duck when the check could not reach Studio", async () => {
+      vi.mocked(previewDucking).mockRejectedValue(new Error("offline"));
+      open(music);
+      expect(
+        await screen.findByText(
+          "Could not check the music tracks. You can still duck.",
+          {},
+          wait,
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Duck music under speech" }),
+      ).toBeEnabled();
+    });
+
+    it("is not offered on a voice track, to an editor link or to a viewer, and sends no check", async () => {
+      open(withAudio);
+      open(music, [], "edit");
+      open(music, [], "view");
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      expect(screen.queryByRole("button", { name: /Duck music/ })).toBeNull();
+      expect(previewDucking).not.toHaveBeenCalled();
     });
   });
 

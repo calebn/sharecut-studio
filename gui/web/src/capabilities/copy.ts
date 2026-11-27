@@ -111,6 +111,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Remove extracted room tone",
     tooltip: "Take the cut room-tone bed off this track",
   },
+  "daw.track.duckUnderSpeech": {
+    label: "Duck music under speech",
+    tooltip: "Lower every music track while people speak",
+  },
   "daw.track.reorder": {
     label: "Reorder track",
     tooltip: "Reorder track",
@@ -451,9 +455,6 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "agent.pipeline": {
     label: "Pipeline / master / bounce",
-  },
-  "agent.ducking": {
-    label: "Duck music under dialogue",
   },
   "agent.history": {
     label: "History",
