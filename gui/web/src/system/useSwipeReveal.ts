@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { TOUCH_SLOP_PX } from "../hooks/gestureConstants";
-import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
+import { useDragInterruptWatch } from "../hooks/useDragInterruptWatch";
 
 type Origin = {
   id: number;
@@ -46,21 +46,13 @@ export function useSwipeReveal(
   const [offset, setOffset] = useState<number | null>(null);
   const origin = useRef<Origin | null>(null);
   const swallowClick = useRef(false);
-  const watch = useRef<AbortController | null>(null);
+  const { start: watchInterrupts, stop: unwatch } = useDragInterruptWatch();
   const holder = useRef<HTMLElement | null>(null);
-
-  useEffect(() => () => watch.current?.abort(), []);
-
-  const unwatch = () => {
-    watch.current?.abort();
-    watch.current = null;
-  };
 
   const cancel = () => {
     const start = origin.current;
     if (!start) return;
     origin.current = null;
-    swallowClick.current = false;
     unwatch();
     if (holder.current?.hasPointerCapture?.(start.id))
       holder.current.releasePointerCapture(start.id);
@@ -120,9 +112,7 @@ export function useSwipeReveal(
           locked: false,
         };
         holder.current = event.currentTarget;
-        unwatch();
-        watch.current = new AbortController();
-        listenForDragInterrupt(cancel, watch.current.signal);
+        watchInterrupts(cancel);
       },
       onPointerMove: (event) => {
         const start = origin.current;

@@ -5,7 +5,7 @@ import {
   useEffectEvent,
   useRef,
 } from "react";
-import { listenForDragInterrupt } from "../../hooks/useInterruptCancel";
+import { useDragInterruptWatch } from "../../hooks/useDragInterruptWatch";
 import { capturePointer, pointerRatio } from "../../system/wavePointer";
 import { PeakStrip } from "../../system/waveStrip";
 import { clamp } from "../../utils/math";
@@ -52,11 +52,7 @@ export function ClipTrimWave({
     from: number;
     moved: boolean;
   } | null>(null);
-  const watch = useRef<AbortController | null>(null);
-  const unwatch = () => {
-    watch.current?.abort();
-    watch.current = null;
-  };
+  const { start: watchInterrupts, stop: unwatch } = useDragInterruptWatch();
   const latest = useRef({ onTrim, onGesture });
   useEffect(() => {
     latest.current = { onTrim, onGesture };
@@ -70,13 +66,7 @@ export function ClipTrimWave({
     latest.current.onGesture?.(false);
   };
   const release = useEffectEvent(() => onGesture?.(false));
-  useEffect(
-    () => () => {
-      unwatch();
-      release();
-    },
-    [],
-  );
+  useEffect(() => () => release(), []);
   const span = Math.max(window.end - window.start, 0.001);
   const ratio = (time: number) => clamp((time - window.start) / span, 0, 1);
   const percent = (value: number) => `${Number((value * 100).toFixed(3))}%`;
@@ -89,9 +79,7 @@ export function ClipTrimWave({
       moved: false,
     };
     capturePointer(event);
-    unwatch();
-    watch.current = new AbortController();
-    listenForDragInterrupt(() => restore(), watch.current.signal);
+    watchInterrupts(restore);
   };
   const onMove = (event: PointerEvent<HTMLElement>) => {
     const drag = dragging.current;
@@ -137,8 +125,8 @@ export function ClipTrimWave({
         onPointerDown={onDown(edge)}
         onPointerMove={onMove}
         onPointerUp={onUp}
-        onPointerCancel={onUp}
-        onLostPointerCapture={onUp}
+        onPointerCancel={restore}
+        onLostPointerCapture={restore}
         onKeyDown={onKey(edge)}
         onBlur={() => {
           if (dragging.current) restore();

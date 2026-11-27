@@ -297,6 +297,19 @@ describe("ClipTrimWave and a page interrupt", () => {
     },
   );
 
+  it.each([
+    ["pointercancel", fireEvent.pointerCancel],
+    ["lost pointer capture", fireEvent.lostPointerCapture],
+  ])("%s restores the edge like an interrupt", (_name, fire) => {
+    const { onTrim, onGesture, out } = hold();
+    fire(out, { pointerId: 1 });
+    expect(onTrim).toHaveBeenCalledTimes(2);
+    expect(onTrim.mock.lastCall).toEqual(["end", 11.8]);
+    expect(onGesture.mock.lastCall).toEqual([false]);
+    fireEvent.pointerUp(out, { pointerId: 1 });
+    expect(onTrim).toHaveBeenCalledTimes(2);
+  });
+
   it("writes nothing for a press that never moved", () => {
     const onGesture = vi.fn();
     const { onTrim, handle } = setup({ onGesture });

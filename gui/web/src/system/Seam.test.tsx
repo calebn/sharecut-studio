@@ -572,7 +572,7 @@ describe("Seam rolling and a page interrupt", () => {
   };
 
   it.each(Object.entries(dragInterrupts))(
-    "%s drops the roll with no save, and the next click still selects",
+    "%s drops the roll with no save, swallows the release click, and the next tap selects",
     (_name, interrupt) => {
       const { container, hit, rolled, onSelect } = hold();
       expect(container.querySelector(".sys-seam-readout")).not.toBeNull();
@@ -581,6 +581,10 @@ describe("Seam rolling and a page interrupt", () => {
       expect(rolled.onPreview).toHaveBeenLastCalledWith(null);
       fireEvent.pointerUp(hit, { pointerId: 1 });
       expect(rolled.onCommit).not.toHaveBeenCalled();
+      fireEvent.click(hit);
+      expect(onSelect).not.toHaveBeenCalled();
+      fireEvent.pointerDown(hit, { pointerId: 2, button: 0, clientX: 100 });
+      fireEvent.pointerUp(hit, { pointerId: 2 });
       fireEvent.click(hit);
       expect(onSelect).toHaveBeenCalledOnce();
     },

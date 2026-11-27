@@ -18,7 +18,7 @@ import {
   useEffect,
   useRef,
 } from "react";
-import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
+import { useDragInterruptWatch } from "../hooks/useDragInterruptWatch";
 import type { DrawerDetent, SheetDrawer } from "./BottomSheet";
 import { type DragSample, releaseVelocity, settleDetent } from "./drawerMotion";
 
@@ -105,7 +105,7 @@ export function useDrawerSwipe(
   const strip = useRef<number | null>(null);
   const stopSettle = useRef<() => void>(() => undefined);
   const live = useRef(false);
-  const watch = useRef<AbortController | null>(null);
+  const interrupts = useDragInterruptWatch();
 
   // The sheet losing its drawer (a selection cleared, a track chosen, the
   // sheet closing) drops the drag or settle it was in, so its drag styles
@@ -117,7 +117,7 @@ export function useDrawerSwipe(
     live.current = true;
     return () => {
       live.current = false;
-      watch.current?.abort();
+      interrupts.stop();
       const s = swipe.current;
       swipe.current = null;
       if (s) cancelAnimationFrame(s.frame);
@@ -125,7 +125,7 @@ export function useDrawerSwipe(
       const dragged = s?.panel ?? panel;
       if (dragged) rest(dragged);
     };
-  }, [hasDrawer, panelRef]);
+  }, [hasDrawer, panelRef, interrupts]);
 
   /** Slides the sheet to `detent`'s height, once drawn there, then lets it rest. */
   const settle = (panel: HTMLElement, slot: number, detent: DrawerDetent) => {
@@ -163,8 +163,7 @@ export function useDrawerSwipe(
   const release = (s: Swipe, detent: DrawerDetent) => {
     cancelAnimationFrame(s.frame);
     swipe.current = null;
-    watch.current?.abort();
-    watch.current = null;
+    interrupts.stop();
     s.panel.style.transform = translate(s.slot - s.height);
     requestAnimationFrame(() => settle(s.panel, s.slot, detent));
   };
@@ -217,11 +216,9 @@ export function useDrawerSwipe(
       event.currentTarget.setPointerCapture?.(event.pointerId);
       const held = swipe.current;
       const back = drawer.detent;
-      watch.current?.abort();
-      watch.current = new AbortController();
-      listenForDragInterrupt(() => {
+      interrupts.start(() => {
         if (swipe.current === held) release(held, back);
-      }, watch.current.signal);
+      });
     },
     onPointerMove(event) {
       const s = swipe.current;

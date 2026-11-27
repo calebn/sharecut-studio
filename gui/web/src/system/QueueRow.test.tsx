@@ -214,7 +214,7 @@ describe("QueueRow swipe and a page interrupt", () => {
   };
 
   it.each(Object.entries(dragInterrupts))(
-    "%s drops the swipe with no decision, and a later release does nothing",
+    "%s drops the swipe with no decision, swallows the release click, and the next tap selects",
     (_name, interrupt) => {
       const { button, onVerb, onKeep, onSelect, vibrate } = setup();
       interrupt();
@@ -222,6 +222,15 @@ describe("QueueRow swipe and a page interrupt", () => {
       expect(onVerb).not.toHaveBeenCalled();
       expect(onKeep).not.toHaveBeenCalled();
       expect(vibrate).not.toHaveBeenCalled();
+      fireEvent.click(button);
+      expect(onSelect).not.toHaveBeenCalled();
+      fireEvent.pointerDown(button, {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: true,
+        pointerId: 2,
+      });
+      fireEvent.pointerUp(button, { clientX: 100, clientY: 0, pointerId: 2 });
       fireEvent.click(button);
       expect(onSelect).toHaveBeenCalledOnce();
     },

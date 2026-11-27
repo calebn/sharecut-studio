@@ -5,7 +5,7 @@ import {
   useEffect,
   useRef,
 } from "react";
-import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
+import { useDragInterruptWatch } from "../hooks/useDragInterruptWatch";
 import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 import type { TimeRange } from "./seconds";
@@ -51,11 +51,7 @@ export function SuggestionWaveform({
   const track = useRef<HTMLDivElement>(null);
   const dragging = useRef<{ edge: Edge; from: TimeRange } | null>(null);
   const started = useRef(false);
-  const watch = useRef<AbortController | null>(null);
-  const unwatch = () => {
-    watch.current?.abort();
-    watch.current = null;
-  };
+  const { start: watchInterrupts, stop: unwatch } = useDragInterruptWatch();
   const latest = useRef(onAdjust);
   useEffect(() => {
     latest.current = onAdjust;
@@ -68,7 +64,6 @@ export function SuggestionWaveform({
     if (started.current) latest.current?.(drag.from);
     started.current = false;
   };
-  useEffect(() => unwatch, []);
   const bounds: TimeRange = {
     start: windowStart,
     end: windowStart + WAVEFORM_WINDOW_S,
@@ -92,9 +87,7 @@ export function SuggestionWaveform({
     dragging.current = { edge, from: { start, end } };
     started.current = false;
     capturePointer(event);
-    unwatch();
-    watch.current = new AbortController();
-    listenForDragInterrupt(() => restore(), watch.current.signal);
+    watchInterrupts(restore);
   };
   const onMove = (event: PointerEvent<HTMLElement>) => {
     const edge = dragging.current?.edge;
@@ -148,7 +141,7 @@ export function SuggestionWaveform({
         onPointerDown={onDown(edge)}
         onPointerMove={onMove}
         onPointerUp={onUp}
-        onPointerCancel={onUp}
+        onPointerCancel={restore}
         onKeyDown={onKey(edge)}
       >
         <span className="sys-wave-knob" />

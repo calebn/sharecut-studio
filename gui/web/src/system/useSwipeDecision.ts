@@ -1,5 +1,5 @@
-import { type PointerEvent, useEffect, useRef, useState } from "react";
-import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
+import { type PointerEvent, useRef, useState } from "react";
+import { useDragInterruptWatch } from "../hooks/useDragInterruptWatch";
 import {
   releaseSwipe,
   type SwipeIntent,
@@ -28,19 +28,15 @@ export function useSwipeDecision(
   const moved = useRef(false);
   const captured = useRef(false);
   const [drag, setDrag] = useState<SwipeDrag | null>(null);
-  const watch = useRef<AbortController | null>(null);
+  const interrupts = useDragInterruptWatch();
   const holder = useRef<Element | null>(null);
-
-  useEffect(() => () => watch.current?.abort(), []);
 
   const cancel = () => {
     const origin = start.current;
     if (!origin) return;
     start.current = null;
-    moved.current = false;
     captured.current = false;
-    watch.current?.abort();
-    watch.current = null;
+    interrupts.stop();
     if (holder.current?.hasPointerCapture?.(origin.id))
       holder.current.releasePointerCapture(origin.id);
     holder.current = null;
@@ -50,8 +46,7 @@ export function useSwipeDecision(
   const finish = (event: PointerEvent, commit: boolean) => {
     const origin = start.current;
     start.current = null;
-    watch.current?.abort();
-    watch.current = null;
+    interrupts.stop();
     setDrag(null);
     if (!origin || !commit) return;
     const intent = releaseSwipe(
@@ -87,9 +82,7 @@ export function useSwipeDecision(
               id: event.pointerId,
             };
             holder.current = event.currentTarget;
-            watch.current?.abort();
-            watch.current = new AbortController();
-            listenForDragInterrupt(cancel, watch.current.signal);
+            interrupts.start(cancel);
           },
           onPointerMove: (event: PointerEvent) => {
             const origin = start.current;
