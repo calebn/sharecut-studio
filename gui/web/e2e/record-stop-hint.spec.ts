@@ -23,8 +23,10 @@ import { setTheme, withAppearance } from "./theme";
 /**
  * #4660 item 5a: the live Stop button's "Hold to stop" caption.
  *
- * The main test runs rest, tap, expiry, second tap and busy in one body
- * (5 cells x 2 themes x 2 motion) because `inRoom` is costly to repeat.
+ * The main block is 5 tests, one per cell. `withAppearance` gives each cell a
+ * single theme and motion pairing, not the full cross. Each test runs rest,
+ * tap, expiry, second tap and busy in one body because `inRoom` is costly to
+ * repeat.
  *
  * The sr-only description of the button contains "Enter or Space", so a text
  * query on it matches that span too. The caption is therefore found with
@@ -398,7 +400,7 @@ test.describe("a live Stop button", () => {
     );
   });
 
-  test("laptop: [GUARD] Enter asks, the confirm stops, and the name stays Stop take", async ({
+  test("laptop: [GUARD] Enter asks, the confirm stops", async ({
     browser,
   }: {
     browser: Browser;
