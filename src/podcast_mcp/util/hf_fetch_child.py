@@ -86,6 +86,17 @@ Error: Request error: HTTP status client error (401 Unauthorized), domain: https
 (seen with huggingface_hub 2.4.0 and hf_xet when the Xet token is refused)."""
 
 
+_DISK_MESSAGE_MARKERS = ("no space left", "enospc", "disk full")
+"""How a full disk reads inside an exception that carries no ``errno``: hf_xet's Rust core wraps
+the OS error in a plain ``RuntimeError`` (``... File reconstruction error: No space left on
+device (os error 28)``), which would otherwise match the Xet prefixes and fall back."""
+
+
+def _is_disk_message(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _DISK_MESSAGE_MARKERS)
+
+
 def _is_xet(exc: BaseException) -> bool:
     """An hf_xet failure (a blocked Xet host, a refused token): a transport problem, not a bug.
 
@@ -104,7 +115,7 @@ def describe(exc: BaseException) -> dict[str, Any]:
     code = exc.errno if isinstance(exc, OSError) else None
     if status is not None:
         kind = "http"
-    elif code in _DISK_ERRNOS:
+    elif code in _DISK_ERRNOS or _is_disk_message(exc):
         kind = "disk"
     elif _is_network(exc) or _is_xet(exc):
         kind = "network"

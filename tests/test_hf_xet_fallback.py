@@ -722,3 +722,212 @@ def test_a_successful_child_fetch_runs_no_cleanup_and_deletes_nothing(
     assert removed == []
     assert (blobs / SHA).exists()
     assert (blobs / f"{SHA}.new1.incomplete").exists()
+
+
+# ---- a disk-full error raised inside hf_xet is a disk error (#1998) ----------------------
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Task error: File reconstruction error: No space left on device (os error 28)",
+        "Data processing error: ENOSPC while writing the shard",
+        "CAS Client Error: disk full",
+    ],
+    ids=["no-space-left", "enospc", "disk-full"],
+)
+def test_describe_classifies_a_disk_full_message_inside_hf_xet_as_disk(message: str) -> None:
+    line = hf_fetch_child.describe(RuntimeError(message))
+
+    assert (line["kind"], line["xet"]) == ("disk", False)
+
+
+def test_a_disk_full_xet_error_does_not_fall_back_and_gives_no_notice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    child = (
+        "import json, sys\n"
+        "from podcast_mcp.util import hf_fetch_child\n"
+        "line = hf_fetch_child.describe(RuntimeError("
+        "'Task error: File reconstruction error: No space left on device (os error 28)'))\n"
+        "print(json.dumps(line)); sys.exit(1)\n"
+    )
+    _stub(monkeypatch, child)
+    notices: list[str] = []
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(
+            _payload_pin(), tmp_path / "hub", on_progress=lambda _p: None, on_notice=notices.append
+        )
+
+    assert raised.value.kind == "disk"
+    assert calls == []
+    assert notices == []
+
+
+def test_a_disk_error_the_child_marks_xet_never_falls_back(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    payload = {"error": "RuntimeError", "status": None, "message": "m", "kind": "disk", "xet": True}
+    _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=lambda _p: None)
+
+    assert raised.value.kind == "disk"
+    assert calls == []
+
+
+@pytest.mark.parametrize("marker", ["yes", 1, "true", [1]], ids=["str", "int", "true-str", "list"])
+def test_a_truthy_xet_value_that_is_not_true_does_not_fall_back(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, marker: object
+) -> None:
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    payload = {"error": "E", "status": None, "message": "m", "kind": "network", "xet": marker}
+    _stub(monkeypatch, f"import json,sys; print(json.dumps({payload!r})); sys.exit(1)")
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=lambda _p: None)
+
+    assert raised.value.xet is False
+    assert calls == []
+
+
+def test_status_does_not_follow_the_implicit_context() -> None:
+    from tests.test_hf_fetch_child import _http_error
+
+    try:
+        try:
+            raise _http_error(404)
+        except Exception:
+            raise ValueError("a bug in our own code")  # noqa: B904 - the implicit __context__ is the point
+    except ValueError as exc:
+        caught = exc
+    line = hf_fetch_child.describe(caught)
+
+    assert caught.__cause__ is None
+    assert isinstance(caught.__context__, BaseException)
+    assert hf_fetch_child._status(caught) is None
+    assert (line["status"], line["kind"]) == (None, "other")
+
+
+# ---- Cancel reaches the plain download through stop.guard -------------------------------
+
+
+def test_cancel_raised_by_the_heartbeat_stops_the_hub_through_the_stop_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The sink raises only on the caller's tick, never on the hub's own thread, so the hub's
+    next byte update raises solely because ``stop.guard`` hands it the Cancel."""
+    import threading
+
+    import huggingface_hub
+
+    started, release, finished = threading.Event(), threading.Event(), threading.Event()
+    outcome: list[str] = []
+
+    def paused_hub(*_a: object, **kwargs: Any) -> str:
+        bar = kwargs["tqdm_class"](total=100, unit="B", desc="Reconstructing", initial=0)
+        started.set()
+        release.wait(10)
+        try:
+            bar.update(5)
+            outcome.append("completed")
+        except CancelledProgress:
+            outcome.append("stopped")
+        finally:
+            finished.set()
+        return str(tmp_path / "snap")
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", paused_hub)
+    _stub(monkeypatch, XET_CHILD)
+
+    def sink(_progress: DownloadProgress) -> None:
+        if started.is_set() and threading.current_thread().name != "plain-http-fallback":
+            raise CancelledProgress("cancel")
+
+    try:
+        with pytest.raises(CancelledProgress):
+            download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=sink)
+    finally:
+        release.set()
+    assert finished.wait(5.0)
+    assert outcome == ["stopped"]
+    assert wait_for(lambda: model_manifest._plain_http_depth == 0, timeout=5.0)
+
+
+# ---- the fallback notice ------------------------------------------------------------------
+
+
+def test_the_fallback_gives_one_notice_with_no_path_url_or_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _hub(monkeypatch, tmp_path / "snap")
+    _stub(monkeypatch, XET_CHILD)
+    notices: list[str] = []
+
+    download_pinned_snapshot(
+        _payload_pin(), tmp_path / "hub", on_progress=lambda _p: None, on_notice=notices.append
+    )
+
+    assert notices == [model_manifest.FALLBACK_NOTICE]
+    assert notices[0] == (
+        "the fast transfer failed, so it is retrying over the standard connection, which is slower."
+    )
+    assert not any(bad in notices[0] for bad in ("/", "http", "HF_", "xet", str(tmp_path)))
+
+
+def test_a_force_refetch_after_the_fallback_gives_no_second_notice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _hub(monkeypatch, tmp_path / "snap")
+    _stub(monkeypatch, XET_CHILD)
+    checks: list[int] = []
+
+    def mismatch_once(*_a: object) -> str | None:
+        checks.append(1)
+        return "model.bin sha" if len(checks) == 1 else None
+
+    monkeypatch.setattr(model_manifest, "manifest_mismatch", mismatch_once)
+    notices: list[str] = []
+
+    download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_notice=notices.append)
+
+    assert len(checks) == 2
+    assert len(notices) == 1
+
+
+def test_a_clean_child_download_gives_no_notice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    snapshot = tmp_path / "snap"
+    snapshot.mkdir()
+    (snapshot / "model.bin").write_bytes(b"model")
+    _stub(monkeypatch, f"import json; print(json.dumps({{'path': {str(snapshot)!r}}}))")
+    notices: list[str] = []
+
+    download_pinned_snapshot(
+        _payload_pin(), tmp_path / "hub", on_progress=lambda _p: None, on_notice=notices.append
+    )
+
+    assert notices == []
+
+
+# ---- the last progress value after a fallback is the total ---------------------------------
+
+
+def test_the_final_progress_after_a_mid_way_fallback_is_the_total(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The hub's plain path skips blobs the child finished, so its own bar stops short of the
+    total (the live run ended at 75,537,502 of 78,090,594)."""
+    _hub(monkeypatch, tmp_path / "snap", report=20)
+    _stub(monkeypatch, _blob_child(XET_AFTER_BLOB, size=50))
+    events: list[DownloadProgress] = []
+
+    download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=events.append)
+
+    assert max(e.bytes for e in events[:-1]) < 100
+    assert events[-1] == DownloadProgress(100, 100)
