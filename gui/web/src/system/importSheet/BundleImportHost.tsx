@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -105,7 +106,7 @@ export function BundleImportHost({
     (phase) => phase === "uploading" || phase === "committing",
   );
   const busyRef = useRef(busy);
-  useEffect(() => {
+  useLayoutEffect(() => {
     busyRef.current = busy;
   });
 

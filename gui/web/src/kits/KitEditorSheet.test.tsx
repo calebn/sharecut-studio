@@ -126,7 +126,9 @@ describe("New kit button", () => {
 describe("KitEditorSheet", () => {
   it("opens empty with the name focused and Save off for a reason", async () => {
     const { dialog } = await openSheet();
-    expect(within(dialog).getByLabelText("Name")).toHaveFocus();
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Name")).toHaveFocus(),
+    );
     expect(
       within(dialog).getByText(/Add the segments this kit puts/),
     ).toBeVisible();
@@ -423,7 +425,9 @@ describe("KitEditorSheet", () => {
     expect(screen.getByRole("dialog", { name: "New kit" })).toBeVisible();
     expect(entries(dialog)).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Save kit" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Save kit" })).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save kit" })).toHaveFocus(),
+    );
   });
 
   it("returns focus to the name field when the studio refuses the name", async () => {
@@ -435,7 +439,9 @@ describe("KitEditorSheet", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "A kit name needs at least one letter or digit from a to z.",
     );
-    expect(within(dialog).getByLabelText("Name")).toHaveFocus();
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Name")).toHaveFocus(),
+    );
   });
 
   it("flags an entry whose segment left the library and blocks Save until it is removed", async () => {
