@@ -14,6 +14,7 @@ from podcast_mcp.gui.host_file_dialog import (
     pick_episode_project_path,
     pick_folder,
 )
+from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, PROJECT_FILE_EXTENSION
 from podcast_mcp.util import process
 from podcast_mcp.util.host_platform import GENERIC_POSIX, IOS, LINUX, MACOS, WINDOWS
 
@@ -270,3 +271,32 @@ def test_pick_folder_windows_uses_the_folder_browser(
     assert "FolderBrowserDialog" in seen[0][-1]
     monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.shutil.which", lambda _n: None)
     assert pick_folder().unavailable
+
+
+def test_project_file_extension_is_spelled_once_in_every_platform_dialog(
+    monkeypatch: pytest.MonkeyPatch, host
+) -> None:
+    assert f"episode.{PROJECT_FILE_EXTENSION}" == EPISODE_PROJECT_FILENAME
+    seen: list[str] = []
+
+    def _run(argv, **_kwargs):
+        seen.append(" ".join(argv))
+        return MagicMock(returncode=1, stdout="", stderr="")
+
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.process.run", _run)
+    monkeypatch.setattr(
+        "podcast_mcp.gui.host_file_dialog.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    for platform in (MACOS, WINDOWS, LINUX):
+        host(platform)
+        pick_episode_project_path()
+    monkeypatch.setattr(
+        "podcast_mcp.gui.host_file_dialog.shutil.which",
+        lambda name: "/usr/bin/kdialog" if name == "kdialog" else None,
+    )
+    pick_episode_project_path()
+    assert len(seen) == 4
+    assert all(
+        f"*.{PROJECT_FILE_EXTENSION}" in call or f'"{PROJECT_FILE_EXTENSION}"' in call
+        for call in seen
+    )

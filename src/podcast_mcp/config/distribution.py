@@ -18,6 +18,7 @@ from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 from podcast_mcp import settings
+from podcast_mcp.models.episode import PROJECT_FILE_EXTENSION
 
 _BUNDLE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$")
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*$")
@@ -72,6 +73,7 @@ class DistributionProfile:
     updater_endpoint: str | None
     updater_public_key: str | None
     short_name: str | None = None
+    project_file_association: bool = False
 
 
 def compact_product_name(profile: DistributionProfile) -> str:
@@ -242,6 +244,7 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
         "updater_endpoint",
         "updater_public_key",
         "short_name",
+        "project_file_association",
     }
     unknown = sorted(set(raw) - allowed_keys)
     if unknown:
@@ -260,6 +263,9 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
             raise DistributionProfileError("short_name must contain 1-15 characters")
         if _CONTROL_CHARACTER.search(short_name):
             raise DistributionProfileError("short_name must not contain control characters")
+    project_file_association = raw.get("project_file_association", False)
+    if not isinstance(project_file_association, bool):
+        raise DistributionProfileError("project_file_association must be a boolean")
     bundle_id = str(raw.get("bundle_identifier") or "").strip()
     if not _BUNDLE_ID.fullmatch(bundle_id):
         raise DistributionProfileError("bundle_identifier must use reverse-DNS syntax")
@@ -328,6 +334,7 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
         ),
         updater_public_key=(_validate_updater_public_key(key_raw) if key_raw is not None else None),
         short_name=short_name,
+        project_file_association=project_file_association,
     )
 
 
@@ -385,4 +392,20 @@ def tauri_distribution_overlay(profile: DistributionProfile) -> dict[str, Any]:
         },
         "plugins": plugins,
     }
+    if profile.project_file_association:
+        overlay["bundle"] = {
+            "fileAssociations": [
+                {
+                    "ext": [PROJECT_FILE_EXTENSION],
+                    "name": "ShareCut project",
+                    "description": "ShareCut Studio episode",
+                    "role": "Editor",
+                    "mimeType": "application/vnd.sharecut.project+json",
+                    "exportedType": {
+                        "identifier": f"{profile.bundle_identifier}.project",
+                        "conformsTo": ["public.json"],
+                    },
+                }
+            ]
+        }
     return overlay

@@ -37,7 +37,8 @@ from podcast_mcp.util.media_identity import same_recording
 
 logger = logging.getLogger(__name__)
 
-EPISODE_PROJECT_FILENAME = "episode.sharecut"
+PROJECT_FILE_EXTENSION = "sharecut"
+EPISODE_PROJECT_FILENAME = f"episode.{PROJECT_FILE_EXTENSION}"
 _T = TypeVar("_T")
 # Track volume fader range (dB), on top of the pipeline's staging gain_db.
 FADER_MIN_DB = -60.0
