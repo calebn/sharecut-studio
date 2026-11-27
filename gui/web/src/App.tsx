@@ -61,6 +61,7 @@ import {
   collectUnsent,
   type UnsentText,
 } from "./state/unsentText";
+import { OpenBundleHost } from "./system/importSheet/OpenBundleHost";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen } from "./ui";
 import { peekOpenStage } from "./utils/openIntent";
@@ -720,6 +721,7 @@ export default function App({ bootName = null }: { bootName?: string | null }) {
       {isGuestLocation() ? inner : <ModelsProvider>{inner}</ModelsProvider>}
       <AskDialog />
       {isGuestLocation() ? null : <OpenProjectFileHost />}
+      {isGuestLocation() ? null : <OpenBundleHost />}
     </FeatureProvider>
   );
 }

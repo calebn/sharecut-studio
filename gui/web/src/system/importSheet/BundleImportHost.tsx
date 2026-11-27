@@ -28,6 +28,7 @@ import {
 } from "./bundleCopy";
 import { classifyBundle } from "./classifyBundle";
 import { IMPORT_FAILED, WAIT_TO_DROP } from "./importCopy";
+import { useHoldOpenImport } from "./openImportSignal";
 
 type Props = {
   segments: SegmentLibraryState;
@@ -75,6 +76,7 @@ export function BundleImportHost({
   const wasImporting = useRef(false);
   const opener = useRef<HTMLElement | null>(null);
   const [aside, setAside] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const { reveal } = segments;
   const reloadKits = kits?.reload;
@@ -105,6 +107,7 @@ export function BundleImportHost({
   const busy = [segmentImport.state.phase, kitImport.state.phase].some(
     (phase) => phase === "uploading" || phase === "committing",
   );
+  useHoldOpenImport(importing || checking);
   const busyRef = useRef(busy);
   useLayoutEffect(() => {
     busyRef.current = busy;
@@ -153,6 +156,7 @@ export function BundleImportHost({
             : null;
       }
       classifying.current = true;
+      setChecking(true);
       void classifyBundle(file)
         .then((kind) => {
           // One sheet at a time: a waiting file of the other kind is dropped first.
@@ -168,6 +172,7 @@ export function BundleImportHost({
         .catch(() => refuse(IMPORT_FAILED))
         .finally(() => {
           classifying.current = false;
+          setChecking(false);
         });
     },
     [chooseKit, chooseSegment, cancelKit, cancelSegment],
