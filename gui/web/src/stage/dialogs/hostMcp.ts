@@ -25,7 +25,7 @@ export const ACTIVITY_TICK_MS = 15_000;
 export const RECENT_MAX_SECONDS = 600;
 
 export const UNAVAILABLE_MESSAGE =
-  "Connecting an app isn't available here. This copy of ShareCut Studio isn't set up to accept connections from other apps on this computer.";
+  "Connecting an app isn't available here. This copy of ShareCut Studio isn't set up to accept connections from other apps on this computer. See the Setup guide for other ways to connect.";
 
 /** What the host last said about the address. `receivedAt` is `performance.now()`, immune to clock changes. */
 export type ActivityState =

@@ -36,7 +36,10 @@ is still connected, because Studio keeps no sessions for it, and it remembers
 only the time of the latest successful request until Studio restarts. Any local
 program that sends a valid request counts, not only an AI app. If this Studio
 cannot accept connections from other apps, the dialog says so and shows no
-address. If it becomes unavailable while the dialog is open, Studio either
+address and points to this guide for other ways to connect. A temporary
+activity-check failure keeps the last reading. If the check stops because the
+endpoint is unavailable or refuses access, Studio clears the reading until
+you reopen the dialog. If the connection becomes unavailable while the dialog is open, Studio either
 moves focus to the explanation when the focused control disappears or
 announces the change while focus stays on a control such as Setup guide.
 
