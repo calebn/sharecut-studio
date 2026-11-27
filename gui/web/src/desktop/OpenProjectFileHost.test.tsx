@@ -140,10 +140,12 @@ describe("OpenProjectFileHost", () => {
   });
 
   it("runs a path pushed while it is mounted and stops listening after unmount", async () => {
+    openEpisodeProject.mockRejectedValueOnce(new Error("no such project"));
     const view = render(<OpenProjectFileHost />);
     push(PATH);
     await flush();
     expect(openEpisodeProject).toHaveBeenCalledExactlyOnceWith(PATH);
+    await flush();
     view.unmount();
     openEpisodeProject.mockClear();
     push("/other/episode.sharecut");

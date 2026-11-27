@@ -267,6 +267,14 @@ mod tests {
     }
 
     #[test]
+    fn network_paths_are_recognised_on_their_own() {
+        assert!(is_network_path("\\\\server\\share\\episode.sharecut"));
+        assert!(is_network_path("//server/share/episode.sharecut"));
+        assert!(!is_network_path("/server/share/episode.sharecut"));
+        assert!(!is_network_path("C:\\show\\episode.sharecut"));
+    }
+
+    #[test]
     fn rejects_flags_urls_and_network_paths() {
         let dir = Dir::new("rejects");
         let file = dir.file("episode.sharecut");
