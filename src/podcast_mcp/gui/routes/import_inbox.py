@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import shutil
 from pathlib import Path
@@ -11,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
+from podcast_mcp import settings
 from podcast_mcp.gui.routes.deps import NO_STORE, coded_http_error
 
 router = APIRouter()
@@ -25,7 +25,7 @@ def _gone() -> HTTPException:
 
 
 def _entry(inbox_id: str) -> Path:
-    root = os.environ.get(INBOX_ENV)
+    root = settings.text(INBOX_ENV)
     if not root or not _ID.fullmatch(inbox_id):
         raise _gone()
     entry = Path(root) / inbox_id
