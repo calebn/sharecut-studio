@@ -79,7 +79,7 @@ Snapshot of 2026-10-13. Run `gh issue list --label beta:blocker` and
   fail-closed revoke of in-flight media.
 - v1 trust work: packaged client auth, WebView deny-by-default and the updater.
 - The per-track alignment timing map (#1089) and Fill with room tone (#1136).
-- Prosody phase 2, alternate takes, music ducking, stem freeze, show-notes
+- Prosody phase 2, alternate takes, stem freeze, show-notes
   suggestions, user studies and telemetry.
 
 ## Bug bar
