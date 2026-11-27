@@ -498,6 +498,10 @@ describe("Ruler scrubbing", () => {
 });
 
 describe("Ruler selection handles", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("are sliders at the band's ends with the edge as a time and the other edge as a limit", () => {
     const { handle } = setup({ selection });
     expect(handle("start")).toHaveAttribute("aria-valuenow", "606");
@@ -645,6 +649,50 @@ describe("Ruler selection handles", () => {
       ["start", false],
       ["start", false],
     ]);
+  });
+
+  it.each(
+    (["blur", "pagehide", "hidden"] as PageInterrupt[]).flatMap((kind) =>
+      (["start", "end"] as const).map((edge) => [kind, edge] as const),
+    ),
+  )(
+    "end as not committed once on %s at the %s edge, commit nothing on the late release, and take a following drag",
+    (kind, edge) => {
+      const { handle, onSelectionDrag, onSelectionDragEnd } = setup({
+        selection,
+      });
+      const grip = handle(edge);
+      const x = edge === "start" ? 80 : 240;
+      fireEvent.pointerDown(grip, { pointerId: 1, clientX: x });
+      fireEvent.pointerMove(grip, { pointerId: 1, clientX: x + 40 });
+      expect(onSelectionDrag).toHaveBeenCalledTimes(1);
+      pageInterrupts[kind]();
+      fireEvent.pointerMove(grip, { pointerId: 1, clientX: x + 60 });
+      fireEvent.pointerUp(grip, { pointerId: 1, clientX: x + 80 });
+      expect(onSelectionDragEnd.mock.calls).toEqual([[edge, false]]);
+      expect(onSelectionDrag).toHaveBeenCalledTimes(1);
+      fireEvent.pointerDown(grip, { pointerId: 1, clientX: x });
+      fireEvent.pointerMove(grip, { pointerId: 1, clientX: x + 40 });
+      fireEvent.pointerUp(grip, { pointerId: 1, clientX: x + 40 });
+      expect(onSelectionDragEnd.mock.calls).toEqual([
+        [edge, false],
+        [edge, true],
+      ]);
+      pageInterrupts[kind]();
+      expect(onSelectionDragEnd).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("keeps a selection-edge drag live when the tab turns visible, and commits it on release", () => {
+    const { handle, onSelectionDragEnd } = setup({ selection });
+    const grip = handle("start");
+    fireEvent.pointerDown(grip, { pointerId: 1, clientX: 80 });
+    fireEvent.pointerMove(grip, { pointerId: 1, clientX: 120 });
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    fireEvent(document, new Event("visibilitychange"));
+    expect(onSelectionDragEnd).not.toHaveBeenCalled();
+    fireEvent.pointerUp(grip, { pointerId: 1, clientX: 120 });
+    expect(onSelectionDragEnd.mock.calls).toEqual([["start", true]]);
   });
 
   it("end as not committed when the ruler becomes read-only mid-drag", () => {
