@@ -1,10 +1,11 @@
 import { seekLimitSec } from "../audio/proxyMath";
 import { useDawStore } from "../state/dawStore";
+import { effectiveChosen } from "../state/playbackSpeed";
 import { clampToSession } from "../utils/time";
 
 const BACK_STEPS_SEC = [3, 6, 12] as const;
 const REPEAT_WINDOW_MS = 1000;
-const FORWARD_RATES = [1, 2, 4] as const;
+const SCAN_RATES = [2, 4] as const;
 
 let backStep = 0;
 let lastBackAt = Number.NEGATIVE_INFINITY;
@@ -22,9 +23,10 @@ useDawStore.subscribe((s, prev) => {
 
 export function shuttleForward(): void {
   const s = useDawStore.getState();
+  const chosen = effectiveChosen(s);
   const next = s.isPlaying
-    ? (FORWARD_RATES.find((rate) => rate > s.playbackRate) ?? 4)
-    : 1;
+    ? (SCAN_RATES.find((rate) => rate > s.playbackRate) ?? 4)
+    : chosen;
   if (!s.isPlaying) s.setIsPlaying(true);
   s.setPlaybackRate(next);
   s.announceStatus(`Playing ${next}×`, { toast: false });
@@ -40,7 +42,7 @@ export function shuttleBack(): void {
   lastBackAt = now;
   const step = BACK_STEPS_SEC[backStep]!;
   const duration = seekLimitSec(s.project);
-  s.setPlaybackRate(1);
+  s.setPlaybackRate(effectiveChosen(s));
   s.setPlayheadSec(clampToSession(s.playheadSec - step, duration));
   s.announceStatus(`Back ${step} s`, { toast: false });
 }

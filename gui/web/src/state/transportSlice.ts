@@ -1,8 +1,16 @@
 import type { StateCreator } from "zustand";
 import { guestHearsMixOnly } from "../shareMode";
 import type { AuditionMode, SessionRegion } from "../types/session";
+import {
+  formatPlaybackSpeed,
+  isPlaybackSpeed,
+  nextPlaybackSpeed,
+  readPlaybackSpeedPref,
+  writePlaybackSpeedPref,
+} from "../utils/playbackSpeedPref";
 import { clampToSession } from "../utils/time";
 import { afterStop, afterTransport } from "./composerSession";
+import { effectiveChosen, playbackSpeedAvailable } from "./playbackSpeed";
 import type { DawStore } from "./types";
 
 type TransportSlice = Pick<
@@ -25,6 +33,9 @@ type TransportSlice = Pick<
   | "lastAgentQuery"
   | "playUntilSec"
   | "audioError"
+  | "chosenPlaybackRate"
+  | "setPlaybackSpeed"
+  | "cyclePlaybackSpeed"
   | "setPlayheadSec"
   | "setIsPlaying"
   | "togglePlaying"
@@ -58,11 +69,13 @@ export function playStartPatch(
   return !s.isPlaying && atSec !== s.playheadSec ? { playStartSec: null } : {};
 }
 
-/** Pause, Stop and end of media put a shuttled rate back; a followed leader's rate is theirs. */
+/** Pause, Stop, Play and end of media put a scan back to the chosen speed; a followed leader's rate is theirs. */
 export function unshuttledRate(
-  s: Pick<DawStore, "followingClientId" | "playbackRate">,
+  s: Pick<DawStore, "followingClientId" | "chosenPlaybackRate" | "projectPath">,
 ): Partial<Pick<DawStore, "playbackRate">> {
-  return s.followingClientId == null ? { playbackRate: 1 } : {};
+  return s.followingClientId == null
+    ? { playbackRate: effectiveChosen(s) }
+    : {};
 }
 
 /** Where Stop leaves the playhead: the play start, clamped to the current timeline. */
@@ -103,6 +116,32 @@ export const createTransportSlice: StateCreator<
   TransportSlice
 > = (set, get) => ({
   ...transportProjectInitial(),
+  chosenPlaybackRate: readPlaybackSpeedPref(),
+  setPlaybackSpeed: (rate) => {
+    if (!isPlaybackSpeed(rate)) {
+      return;
+    }
+    const s = get();
+    if (s.followingClientId != null) {
+      s.announceStatus("Speed follows the person you're following.", {
+        toast: false,
+      });
+      return;
+    }
+    if (!playbackSpeedAvailable(s.projectPath)) {
+      s.announceStatus("Speed isn't available on Editor links yet.", {
+        toast: false,
+      });
+      return;
+    }
+    writePlaybackSpeedPref(rate);
+    set({ chosenPlaybackRate: rate, playbackRate: rate });
+    s.announceStatus(`Playback speed ${formatPlaybackSpeed(rate)}`, {
+      toast: false,
+    });
+  },
+  cyclePlaybackSpeed: () =>
+    get().setPlaybackSpeed(nextPlaybackSpeed(get().chosenPlaybackRate)),
   sourcePreviewGeneration: 0,
   beginSourcePreview: (request) => {
     // Starting a source-preview Hear is strong local navigation: it ends follow.

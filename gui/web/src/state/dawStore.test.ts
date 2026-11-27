@@ -178,6 +178,17 @@ describe("dawStore listen-first transport", () => {
     expect(useDawStore.getState().playbackRate).toBe(1);
   });
 
+  it("an agent pause puts a shuttled rate back to the chosen speed", () => {
+    useDawStore.getState().setPlaybackSpeed(1.5);
+    useDawStore.setState({ isPlaying: true, playbackRate: 4 });
+    useDawStore
+      .getState()
+      .applyAgentSession(agentSession({ is_playing: false }));
+    expect(useDawStore.getState().playbackRate).toBe(1.5);
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+    localStorage.clear();
+  });
+
   it("an agent pause leaves a followed leader's rate alone", () => {
     useDawStore.setState({
       isPlaying: true,

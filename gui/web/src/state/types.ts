@@ -21,6 +21,7 @@ import type {
   ViewerSessionSnapshot,
 } from "../types/session";
 import type { LaneHeightMode } from "../utils/laneHeightPref";
+import type { PlaybackSpeed } from "../utils/playbackSpeedPref";
 import type { RippleTrim } from "../utils/ripplePreview";
 import type { WaveformScaleMode } from "../waveform/types";
 import type { AfterCutSliceState } from "./afterCutSlice";
@@ -483,6 +484,10 @@ export interface DawState {
   setSoloMap: (map: Record<string, boolean>) => void;
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
+  /** The listening speed this device chose (#3816); a device preference that survives a project switch. `playbackRate` is what engines play now, so any other value is a scan or a followed leader's rate. */
+  chosenPlaybackRate: PlaybackSpeed;
+  setPlaybackSpeed: (rate: number) => void;
+  cyclePlaybackSpeed: () => void;
   setProject: (project: ProjectView) => void;
   setGuestMode: (mode: string | null) => void;
   setReviewPeaks: (peaks: readonly number[]) => void;

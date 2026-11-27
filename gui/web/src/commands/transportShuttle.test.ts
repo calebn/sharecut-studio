@@ -19,6 +19,33 @@ describe("transport.shuttleBack / transport.shuttleForward", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+  });
+
+  it("L plays a paused transport at the chosen speed, then scans above it", async () => {
+    s().setPlaybackSpeed(1.25);
+    await execute("transport.shuttleForward");
+    expect([s().isPlaying, s().playbackRate]).toEqual([true, 1.25]);
+    await execute("transport.shuttleForward");
+    expect(s().playbackRate).toBe(2);
+    await execute("transport.shuttleForward");
+    expect(s().playbackRate).toBe(4);
+    expect(s().statusAnnouncement).toContain("4×");
+  });
+
+  it("Space, K and J return a scan to the chosen speed, not 1x", async () => {
+    s().setPlaybackSpeed(1.5);
+    for (const reset of [
+      () => execute("transport.togglePlay"),
+      () => execute("transport.stop"),
+      () => execute("transport.shuttleBack"),
+    ]) {
+      await execute("transport.shuttleForward");
+      await execute("transport.shuttleForward");
+      expect(s().playbackRate).toBe(2);
+      await reset();
+      expect(s().playbackRate).toBe(1.5);
+    }
   });
 
   it("L plays a paused transport at 1x, then steps 2x, 4x and stays at 4x", async () => {

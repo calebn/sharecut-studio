@@ -208,6 +208,37 @@ describe("useFollowTransport", () => {
     unsubscribe();
   });
 
+  it("a follower with a chosen speed plays the leader's rate and returns to its own after unfollow", () => {
+    useDawStore.getState().setPlaybackSpeed(1.5);
+    const nowNs = Date.now() * 1e6;
+    useDawStore.setState({
+      followingClientId: "a",
+      playheadSec: 0,
+      isPlaying: false,
+      sessionClients: sessionRoster([
+        {
+          client_id: "a",
+          role: "viewer",
+          last_seen_ns: nowNs,
+          meta: {
+            transport: {
+              playing: true,
+              playhead_sec: 4,
+              rate: 1,
+              stamped_ns: nowNs,
+            },
+          },
+        },
+      ]),
+    });
+    renderHook(() => useFollowTransport());
+    expect(useDawStore.getState().playbackRate).toBe(1);
+    act(() => useDawStore.getState().stopFollow());
+    expect(useDawStore.getState().playbackRate).toBe(1.5);
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+    localStorage.clear();
+  });
+
   it("applies leader pause/rate edges immediately and stops correcting after unfollow", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);

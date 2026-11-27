@@ -44,8 +44,9 @@ const LAYER_TABLE: readonly {
       "shareMode",
       "shareRoute",
       "sessionAuth",
+      "frozenReview",
     ],
-    why: "Pure helpers. `capabilities` is copy strings. `shareMode`, `shareRoute` and `sessionAuth` read the URL and token with no React or store. `guestLoadFailure` and `shellLoadFailure` map a failed request to cover copy.",
+    why: "Pure helpers. `capabilities` is copy strings. `shareMode`, `shareRoute` and `sessionAuth` read the URL and token with no React or store. `frozenReview` remembers which review tokens play a published version, so state can ask without reaching into `api`. `guestLoadFailure` and `shellLoadFailure` map a failed request to cover copy.",
   },
   {
     layer: "state",

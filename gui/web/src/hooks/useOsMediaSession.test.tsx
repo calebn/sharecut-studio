@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rememberFrozenReview } from "../api/project";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { shareProjectKey } from "../shareMode";
@@ -147,6 +148,94 @@ describe("useOsMediaSession", () => {
       duration: 60,
       playbackRate: 1,
       position: 40,
+    });
+  });
+
+  describe("playback speed (#3816)", () => {
+    beforeEach(() => {
+      rememberFrozenReview("tok", true);
+    });
+    afterEach(() => {
+      rememberFrozenReview("tok", false);
+      useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+      localStorage.clear();
+    });
+
+    it("declares the new rate at the live position when the speed changes while playing", () => {
+      hydrateGuest();
+      renderHook(() => useOsMediaSession());
+      act(() => useDawStore.getState().setIsPlaying(true));
+      act(() => useDawStore.getState().setPlayheadSec(12, "playback"));
+      act(() => useDawStore.getState().setPlaybackSpeed(1.5));
+      expect(session.setPositionState).toHaveBeenLastCalledWith({
+        duration: 60,
+        playbackRate: 1.5,
+        position: 12,
+      });
+    });
+
+    it("keeps the declared rate current while paused", () => {
+      hydrateGuest();
+      renderHook(() => useOsMediaSession());
+      startThenPause();
+      act(() => useDawStore.getState().setPlaybackSpeed(2));
+      expect(session.playbackState).toBe("paused");
+      expect(session.setPositionState).toHaveBeenLastCalledWith({
+        duration: 60,
+        playbackRate: 2,
+        position: 0,
+      });
+    });
+
+    it("declares a scan once and the chosen speed once when it ends", () => {
+      hydrateGuest();
+      act(() => useDawStore.getState().setPlaybackSpeed(1.25));
+      renderHook(() => useOsMediaSession());
+      act(() => useDawStore.getState().setIsPlaying(true));
+      const calls = session.setPositionState.mock.calls.length;
+      act(() => useDawStore.getState().setPlaybackRate(4));
+      expect(session.setPositionState).toHaveBeenCalledTimes(calls + 1);
+      expect(session.setPositionState).toHaveBeenLastCalledWith(
+        expect.objectContaining({ playbackRate: 4 }),
+      );
+      act(() => useDawStore.getState().setIsPlaying(false));
+      expect(session.setPositionState).toHaveBeenLastCalledWith(
+        expect.objectContaining({ playbackRate: 1.25 }),
+      );
+    });
+
+    it("declares the chosen speed again when following stops", () => {
+      hydrateGuest();
+      act(() => useDawStore.getState().setPlaybackSpeed(1.5));
+      renderHook(() => useOsMediaSession());
+      act(() => useDawStore.getState().setIsPlaying(true));
+      act(() => {
+        useDawStore.setState({ followingClientId: "leader" });
+        useDawStore.getState().setPlaybackRate(1);
+      });
+      expect(session.setPositionState).toHaveBeenLastCalledWith(
+        expect.objectContaining({ playbackRate: 1 }),
+      );
+      act(() => useDawStore.getState().stopFollow("local"));
+      expect(session.setPositionState).toHaveBeenLastCalledWith(
+        expect.objectContaining({ playbackRate: 1.5 }),
+      );
+    });
+
+    it("declares no progress during a source preview, which plays at 1x", () => {
+      hydrateGuest();
+      act(() => useDawStore.getState().setPlaybackSpeed(1.5));
+      renderHook(() => useOsMediaSession());
+      act(() => useDawStore.getState().setIsPlaying(true));
+      act(() =>
+        useDawStore.getState().beginSourcePreview({
+          ownerId: "wordbar",
+          media: { kind: "rendered", url: "preview" },
+          startSec: 1,
+          endSec: 2,
+        }),
+      );
+      expect(session.setPositionState).toHaveBeenLastCalledWith();
     });
   });
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { selectionToWire } from "../session/wire";
 import { useDawStore } from "../state/dawStore";
+import { scanRate } from "../state/playbackSpeed";
 import { mobileModeForStage, tabForStage } from "../state/stageRoutes";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawStore } from "../state/types";
@@ -122,7 +123,7 @@ export function usePresencePublisher(
               s.isPlaying && !seek
                 ? (playbackPositionSec() ?? s.playheadSec)
                 : s.playheadSec,
-            rate: s.playbackRate,
+            rate: scanRate(s),
           },
         },
         immediate,
@@ -205,7 +206,7 @@ export function usePresencePublisher(
         s.playheadSeekRevision !== prev.playheadSeekRevision ||
         (!s.isPlaying && s.playheadSec !== prev.playheadSec) ||
         s.isPlaying !== prev.isPlaying ||
-        s.playbackRate !== prev.playbackRate
+        scanRate(s) !== scanRate(prev)
       ) {
         publishTransport(
           s,

@@ -119,6 +119,14 @@ describe("hydrate resets", () => {
     expect(pick(Object.keys(RESET_ON_SWITCH))).toEqual(RESET_ON_SWITCH);
   });
 
+  it("keeps the device's chosen speed on a project switch", () => {
+    useDawStore.setState({ chosenPlaybackRate: 1.25 });
+    useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    expect(useDawStore.getState().chosenPlaybackRate).toBe(1.25);
+    expect(useDawStore.getState().playbackRate).toBe(1.25);
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+  });
+
   it("resets the three project-bound chrome flags only on a project switch", () => {
     const flags = {
       exportRequested: true,

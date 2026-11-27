@@ -8,6 +8,7 @@ import {
 import { selectionToWire, wireSelectionPatch } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
+import { effectiveChosen } from "./playbackSpeed";
 import { selectionPatch } from "./selectionSlice";
 import { playStartPatch, unshuttledRate } from "./transportSlice";
 import type { DawState, DawStore } from "./types";
@@ -128,7 +129,11 @@ export const createPresenceSlice: StateCreator<
     if (get().followingClientId == null) {
       return;
     }
-    set({ followingClientId: null, playbackRate: 1, followDegraded: {} });
+    set({
+      followingClientId: null,
+      playbackRate: effectiveChosen(get()),
+      followDegraded: {},
+    });
     if (reason === "left") {
       get().announceStatus("They left", { toast: false });
     } else {

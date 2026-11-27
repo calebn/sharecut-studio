@@ -5,6 +5,7 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { afterCutAfterProject } from "./afterCutSlice";
+import { effectiveChosen } from "./playbackSpeed";
 import { presenceProjectInitial } from "./presenceSlice";
 import {
   chapterFollowPatch,
@@ -124,6 +125,10 @@ export const createProjectSlice: StateCreator<
           }
         : {
             ...presenceProjectInitial(),
+            playbackRate: effectiveChosen({
+              chosenPlaybackRate: get().chosenPlaybackRate,
+              projectPath,
+            }),
             ...transportProjectInitial(),
             ...uiProjectInitial(),
             ...stageProjectInitial(guestMode),
