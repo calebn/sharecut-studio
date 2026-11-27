@@ -355,6 +355,40 @@ describe("Record stage host phone Comments sheet (#4660)", () => {
     );
     expect(badge()).toHaveTextContent("1");
   });
+  it("guard: a dropped snapshot is not a new room, so the count of the returning room is kept", async () => {
+    stubViewportShell("phone");
+    const existing = [1, 2, 3].map((n) => comment(`c${n}`, "p_g"));
+    setRoom(recording(existing));
+    mount();
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+    await waitFor(() => expect(peek()).toBeNull());
+    act(() =>
+      setRoom({
+        ...recording([...existing, comment("c4", "p_g")]),
+        server_time_ns: 50,
+      }),
+    );
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    expect(badge()).toHaveTextContent("1");
+  });
+
+  it("guard: the first room after a mount with no snapshot adopts the store", async () => {
+    stubViewportShell("phone");
+    useRecordHostStore.getState().setSnapshot(null);
+    mount();
+    act(() => setRoom(recording([comment("c1", "p_g")])));
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    expect(badge()).toBeNull();
+    act(() =>
+      setRoom({
+        ...recording([comment("c1", "p_g"), comment("c2", "p_g")]),
+        server_time_ns: 60,
+      }),
+    );
+    expect(badge()).toHaveTextContent("1");
+  });
+
   it("starts the count afresh when the session id changes to a new room", async () => {
     stubViewportShell("phone");
     const existing = [1, 2, 3].map((n) => comment(`c${n}`, "p_g"));
@@ -377,6 +411,56 @@ describe("Record stage host phone Comments sheet (#4660)", () => {
       }),
     );
     expect(badge()).toHaveTextContent("1");
+  });
+
+  // Reads the DOM insertions of one synchronous act, so a badge that shows for
+  // a frame and is then removed still fails the test.
+  const switchRoomBadgeInserts = async (strict = false) => {
+    stubViewportShell("phone");
+    setRoom(recording([comment("old", "p_g")]));
+    if (strict) {
+      render(
+        <StrictMode>
+          <Harness capture={{}} />
+        </StrictMode>,
+      );
+    } else {
+      mount();
+    }
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    const inserted: string[] = [];
+    const watch = new MutationObserver(() => {});
+    watch.observe(document.body, { childList: true, subtree: true });
+    act(() =>
+      setRoom({
+        ...recording([1, 2, 3].map((n) => comment(`n${n}`, "p_g"))),
+        session_id: "room2",
+        server_time_ns: 40,
+      }),
+    );
+    for (const record of watch.takeRecords()) {
+      for (const node of record.addedNodes) {
+        if (
+          node instanceof Element &&
+          (node.matches(".sys-dock-badge--inline") ||
+            node.querySelector(".sys-dock-badge--inline"))
+        ) {
+          inserted.push(node.outerHTML);
+        }
+      }
+    }
+    watch.disconnect();
+    return inserted;
+  };
+
+  it("never commits a badge for the new room's comments while switching rooms", async () => {
+    expect(await switchRoomBadgeInserts()).toEqual([]);
+    expect(badge()).toBeNull();
+  });
+
+  it("never commits that badge under StrictMode either", async () => {
+    expect(await switchRoomBadgeInserts(true)).toEqual([]);
+    expect(badge()).toBeNull();
   });
 });
 

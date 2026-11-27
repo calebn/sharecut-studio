@@ -514,17 +514,22 @@ function RecordStageBody({
   }, [keyTake, keyStart, keyStop, keyPause, keyMute]);
 
   // What the host has seen lives here, not in RoomView, which remounts when
-  // the snapshot drops and returns. A different room starts it afresh.
-  const [unreadStore] = useState(() => new UnreadStore());
+  // the snapshot drops and returns. A different room starts it afresh. The
+  // swap happens during render so no committed frame counts the new room's
+  // comments as unread; an absent id never swaps, so a null snapshot between
+  // two renders of the same room keeps the store.
   const sessionId = snapshot?.session_id;
-  const lastRoom = useRef(sessionId);
-  useEffect(() => {
-    if (sessionId === undefined || lastRoom.current === sessionId) return;
-    if (lastRoom.current !== undefined) {
-      unreadStore.reset();
-    }
-    lastRoom.current = sessionId;
-  }, [sessionId, unreadStore]);
+  const [held, setHeld] = useState(() => ({
+    room: sessionId,
+    store: new UnreadStore(),
+  }));
+  if (sessionId !== undefined && sessionId !== held.room) {
+    setHeld({
+      room: sessionId,
+      store: held.room === undefined ? held.store : new UnreadStore(),
+    });
+  }
+  const unreadStore = held.store;
 
   const roomProps: RoomViewProps | null = snapshot
     ? {
