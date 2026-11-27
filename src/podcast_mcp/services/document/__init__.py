@@ -77,6 +77,10 @@ if TYPE_CHECKING:
         describe_fields,
     )
     from podcast_mcp.services.document.feed_results import FeedFieldPinResult
+    from podcast_mcp.services.document.fill_room_tone_results import (
+        FillRoomToneApplied,
+        FillRoomToneUnchanged,
+    )
     from podcast_mcp.services.document.golden_ear import (
         DEFAULT_LIMIT,
         LISTEN_DIRNAME,
@@ -266,6 +270,8 @@ __all__ = [
     "FeedFieldPinResult",
     "FeedService",
     "FeedViewKind",
+    "FillRoomToneApplied",
+    "FillRoomToneUnchanged",
     "GateOverreach",
     "HistoryDiffResult",
     "HistoryListResult",
@@ -427,6 +433,8 @@ _MODULE_BY_NAME = {
     "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
     "FeedViewKind": "feed",
+    "FillRoomToneApplied": "fill_room_tone_results",
+    "FillRoomToneUnchanged": "fill_room_tone_results",
     "PublishedFeedService": "feed",
     "SHOW_KEY": "feed",
     "describe_fields": "feed",
