@@ -26,6 +26,7 @@ function stubDevice(initial: { coarse: boolean; w: number; h: number }) {
     },
   });
   return {
+    mqListeners,
     set(next: Partial<typeof state>) {
       Object.assign(state, next);
     },
@@ -74,15 +75,23 @@ describe("useHandheldLandscape", () => {
     expect(result.current).toBe(false);
   });
 
-  it("stops listening on unmount", () => {
+  it("removes its resize, orientationchange and pointer-query listeners on unmount", () => {
     const dev = stubDevice({ coarse: true, w: 390, h: 844 });
+    const added = vi.spyOn(window, "addEventListener");
+    const removed = vi.spyOn(window, "removeEventListener");
     const { unmount } = renderHook(() => useHandheldLandscape());
+    const handlerOf = (type: string) =>
+      added.mock.calls.find(([t]) => t === type)?.[1];
+    const resize = handlerOf("resize");
+    const rotate = handlerOf("orientationchange");
+    expect(resize).toBeTypeOf("function");
+    expect(rotate).toBeTypeOf("function");
+    expect(dev.mqListeners.size).toBe(1);
     unmount();
-    const spy = vi.spyOn(window, "removeEventListener");
-    expect(() => {
-      dev.set({ w: 820 });
-      window.dispatchEvent(new Event("resize"));
-    }).not.toThrow();
-    spy.mockRestore();
+    expect(removed).toHaveBeenCalledWith("resize", resize);
+    expect(removed).toHaveBeenCalledWith("orientationchange", rotate);
+    expect(dev.mqListeners.size).toBe(0);
+    added.mockRestore();
+    removed.mockRestore();
   });
 });
