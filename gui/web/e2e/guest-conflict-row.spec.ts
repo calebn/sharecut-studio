@@ -388,6 +388,19 @@ function dockButtons(page: Page) {
   });
 }
 
+// The speed button's own box is the touch target; a folded dock drops it, so a missing button is reported as null.
+function dockSpeedTarget(page: Page) {
+  return page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>(
+      ".sys-listen-dock .sys-player-speed",
+    );
+    const box = el?.getBoundingClientRect();
+    return box && box.width > 0
+      ? { width: box.width, height: box.height }
+      : null;
+  });
+}
+
 function sheetOf(page: Page) {
   return attention(page).evaluate((group) => {
     let node: HTMLElement | null = group.parentElement;
@@ -515,6 +528,10 @@ test("a Viewer's dock keeps its token height at 32 px text", async ({
           );
           const height = (await dock.boundingBox())!.height;
           expect(height).toBeCloseTo(9.8125 * 32, 0);
+          const speed = await dockSpeedTarget(guest!);
+          expect(speed).not.toBeNull();
+          expect(speed!.width).toBeGreaterThanOrEqual(44);
+          expect(speed!.height).toBeGreaterThanOrEqual(44);
           expect(
             await guest!.evaluate(
               (property) =>
@@ -522,6 +539,44 @@ test("a Viewer's dock keeps its token height at 32 px text", async ({
               DOCK_PROPERTY,
             ),
           ).toBe("");
+        },
+      );
+    },
+    undefined,
+    twoCopiesProject,
+  );
+});
+
+test("a Commenter's dock keeps a 44 px speed target at 32 px text, or folds it away whole", async ({
+  browser,
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      await withBrowserPages(
+        browser,
+        [
+          {
+            viewport: { width: 390, height: 844 },
+            hasTouch: true,
+            isMobile: true,
+          },
+        ],
+        async ([guest]) => {
+          const token = await createReviewShare(page, projectPath, "commenter");
+          await openGuestShare(guest!, token);
+          const at16 = await dockSpeedTarget(guest!);
+          expect(at16).not.toBeNull();
+          expect(at16!.width).toBeGreaterThanOrEqual(44);
+          expect(at16!.height).toBeGreaterThanOrEqual(44);
+          await setRootFontSize(guest!, 32);
+          await expect(guest!.locator(".sys-listen-dock")).toBeVisible();
+          const at32 = await dockSpeedTarget(guest!);
+          if (at32) {
+            expect(at32.width).toBeGreaterThanOrEqual(44);
+            expect(at32.height).toBeGreaterThanOrEqual(44);
+          }
         },
       );
     },
