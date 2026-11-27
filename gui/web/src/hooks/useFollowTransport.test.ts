@@ -240,10 +240,97 @@ describe("useFollowTransport", () => {
     expect(useDawStore.getState().playbackRate).toBe(1.5);
   });
 
-  describe("on a live-episode link", () => {
-    const follow = (rate: number) => {
-      const nowNs = Date.now() * 1e6;
+  describe("a leader's real rate on every path", () => {
+    // The local clock integrates the store's playbackRate, so a follower that plays slower than the leader's rate falls behind its expected position and the hook seeks.
+    const driftSeeks = (projectPath: string, rate: number) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      useDawStore.getState().hydrate(projectPath, minimalProject());
+      let position = 4;
+      const release = bindPlaybackClock(() => position);
+      let seeks = 0;
+      const rates: number[] = [];
+      const unsubscribe = useDawStore.subscribe((st, prev) => {
+        if (st.playheadSeekRevision !== prev.playheadSeekRevision) {
+          seeks += 1;
+          position = st.playheadSec;
+        }
+        if (st.playbackRate !== prev.playbackRate) rates.push(st.playbackRate);
+      });
+      useDawStore.setState({
+        followingClientId: "lead",
+        playheadSec: 0,
+        isPlaying: false,
+        sessionClients: sessionRoster([
+          {
+            client_id: "lead",
+            role: "viewer",
+            last_seen_ns: 1e9,
+            meta: {
+              transport: {
+                playing: true,
+                playhead_sec: 4,
+                rate,
+                stamped_ns: 1e9,
+              },
+            },
+          },
+        ]),
+      });
+      const { unmount } = renderHook(() => useFollowTransport());
+      try {
+        position = useDawStore.getState().playheadSec;
+        seeks = 0;
+        for (let i = 0; i < 200; i++) {
+          act(() => {
+            vi.advanceTimersByTime(50);
+          });
+          position += 0.05 * useDawStore.getState().playbackRate;
+          // The leader keeps alive, which also refreshes last_seen_ns.
+          if (i % 10 === 9) {
+            const nowNs = Date.now() * 1e6;
+            act(() =>
+              useDawStore.getState().setSessionClients([
+                {
+                  client_id: "lead",
+                  role: "viewer",
+                  last_seen_ns: nowNs,
+                  meta: {
+                    transport: {
+                      playing: true,
+                      playhead_sec: 4 + ((nowNs - 1e9) / 1e9) * rate,
+                      rate,
+                      stamped_ns: nowNs,
+                    },
+                  },
+                } as never,
+              ]),
+            );
+          }
+        }
+        return { seeks, rates };
+      } finally {
+        unsubscribe();
+        unmount();
+        release();
+      }
+    };
+
+    it.each([
+      ["a live link", shareProjectKey("tok")],
+      ["the element path", "/tmp/ep.project.json"],
+    ])("never seeks over 10 s at 1.5x and 1.25x on %s", (_name, path) => {
+      for (const rate of [1.5, 1.25]) {
+        const { seeks, rates } = driftSeeks(path, rate);
+        expect(seeks).toBe(0);
+        expect(rates.every((r) => r >= rate * 0.97 - 1e-9)).toBe(true);
+        useDawStore.setState({ followingClientId: null });
+      }
+    });
+
+    it("plays a leader's chosen 1.5x as published on a live link (pitch shifts until slice 2)", () => {
       useDawStore.getState().hydrate(shareProjectKey("tok"), minimalProject());
+      const nowNs = Date.now() * 1e6;
       useDawStore.setState({
         followingClientId: "a",
         playheadSec: 0,
@@ -257,7 +344,7 @@ describe("useFollowTransport", () => {
               transport: {
                 playing: true,
                 playhead_sec: 4,
-                rate,
+                rate: 1.5,
                 stamped_ns: nowNs,
               },
             },
@@ -265,16 +352,7 @@ describe("useFollowTransport", () => {
         ]),
       });
       renderHook(() => useFollowTransport());
-    };
-
-    it("plays a leader's chosen 1.5x at 1x", () => {
-      follow(1.5);
-      expect(useDawStore.getState().playbackRate).toBe(1);
-    });
-
-    it("still follows a leader's 2x scan", () => {
-      follow(2);
-      expect(useDawStore.getState().playbackRate).toBe(2);
+      expect(useDawStore.getState().playbackRate).toBe(1.5);
     });
   });
 

@@ -31,12 +31,6 @@ export function effectiveChosen(
   return playbackSpeedAvailable(s.projectPath) ? s.chosenPlaybackRate : 1;
 }
 
-// A leader's rate as a follower plays it. The live-episode path pitch-shifts, so a leader's chosen 1.25x or 1.5x stays at 1x there; scan rates (2x, 4x) still follow, as they did before speed was chosen.
-export function followerBaseRate(rate: number, projectPath: string): number {
-  const base = Number.isFinite(rate) && rate > 0 ? rate : 1;
-  return !playbackSpeedAvailable(projectPath) && base < 2 ? 1 : base;
-}
-
 // A same-path refresh can flip the frozen-review status (the bootstrap sets it), which changes what the chosen speed is. When availability flipped since the last hydrate, re-apply the chosen speed unless a leader or a scan (playing at 2x or more) owns the rate.
 export function sameProjectRatePatch(
   s: Pick<

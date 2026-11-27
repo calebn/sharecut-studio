@@ -9,7 +9,6 @@ import {
 } from "../presence/followSync";
 import { sessionClientList } from "../presence/roster";
 import { useDawStore } from "../state/dawStore";
-import { followerBaseRate } from "../state/playbackSpeed";
 
 const CORRECTION_MS = 250;
 const STARTUP_RATE_ADJUSTMENT = 0.03;
@@ -59,7 +58,8 @@ export function useFollowTransport(): void {
         now,
         s.project?.timeline_duration_sec ?? 1e9,
       );
-      const baseRate = followerBaseRate(t.rate, s.projectPath);
+      // The leader's real published rate on every path, so expected and local position stay in step. On a live-episode link the proxy pitch-shifts any rate other than 1x (slice 2 limitation).
+      const baseRate = Number.isFinite(t.rate) && t.rate > 0 ? t.rate : 1;
       if (!Number.isFinite(expected)) return;
       if (!t.playing) playbackPhase = { kind: "steady" };
       if (previousPlaying !== true && t.playing) {
