@@ -5,6 +5,7 @@ import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
 import { announceFailure } from "../commands/refusal";
 import { useDawStore } from "../state/dawStore";
+import { listenLayoutOf } from "../state/stageRoutes";
 import {
   keymapHandoff,
   overlayOpen,
@@ -131,7 +132,12 @@ export function useDawKeymapListener(): void {
             ctx.guestMode !== null &&
             ctx.canComment &&
             ctx.stage === "review" &&
-            ctx.shellBreakpoint !== "phone"
+            ctx.shellBreakpoint !== "phone" &&
+            !listenLayoutOf(
+              ctx.shellBreakpoint,
+              ctx.guestMode,
+              ctx.handheldLandscape,
+            )
           ) {
             focusComposerFromKey();
           }

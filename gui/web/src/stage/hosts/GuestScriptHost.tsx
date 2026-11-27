@@ -68,6 +68,7 @@ function GuestScriptHostAdapter({
       })),
     );
   const shell = useViewportClass();
+  const handheld = useDawStore((s) => s.handheldLandscape);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const short = useShortViewport();
   const role = stageRoleOf(guestMode);
@@ -84,7 +85,8 @@ function GuestScriptHostAdapter({
   const rangeMode = rangeEditMode(projectPath, capabilities);
   const mayRange = rangeMode !== "none";
   const listening =
-    playerPlacementOf({ stage: "review", shell, role, short }) === "dock";
+    playerPlacementOf({ stage: "review", shell, role, short, handheld }) ===
+    "dock";
   const hidden = !isHostRole(role) && ((short && !listening) || !mayRange);
   const wasHidden = useRef(hidden);
   const model = useMemo(() => guestScriptModelOf(script), [script]);
@@ -207,7 +209,7 @@ function GuestScriptHostAdapter({
     <div ref={setRoot} className="stage-host-guest-script">
       <GuestScript
         guest={scriptGuestOf(projectPath, guestMode, rangeMode)}
-        layout={shell === "phone" ? "phone" : "desktop"}
+        layout={listening || shell === "phone" ? "phone" : "desktop"}
         script={script}
         playing={playing}
         playheadWord={playheadWord}
@@ -226,7 +228,7 @@ function GuestScriptHostAdapter({
         onClearSelection={mayRange ? range.onClearSelection : undefined}
       />
       {mayRange ? (
-        <GuestSelectionBar root={root} phone={shell === "phone"} />
+        <GuestSelectionBar root={root} phone={listening || shell === "phone"} />
       ) : null}
     </div>
   );

@@ -14,7 +14,7 @@ import type { AfterCut, AfterCutDirection } from "../state/afterCutSlice";
 import { useDawStore } from "../state/dawStore";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
-import type { DawStore } from "../state/types";
+import type { DawStore, ShellBreakpoint } from "../state/types";
 import type { Selection } from "../types/project";
 import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
@@ -61,7 +61,8 @@ export type CommandContext = {
   hasProject: boolean;
   historyAvailability: HistoryAvailability;
   fixTextAvailability: FixTextAvailability;
-  shellBreakpoint: string;
+  shellBreakpoint: ShellBreakpoint;
+  handheldLandscape: boolean;
   playheadSec: number;
   timelineDurationSec: number;
   projectPath: string;
@@ -196,6 +197,7 @@ export function buildCommandContext(
     historyAvailability: historyAvailability(s),
     fixTextAvailability: fixTextAvailability(s),
     shellBreakpoint: s.shellBreakpoint,
+    handheldLandscape: s.handheldLandscape,
     playheadSec: s.playheadSec,
     timelineDurationSec: s.project?.timeline_duration_sec ?? Infinity,
     projectPath: s.projectPath,

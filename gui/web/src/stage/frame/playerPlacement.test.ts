@@ -36,11 +36,37 @@ const TABLE: Row[] = [
   ["record", "desktop", "host", false, "none"],
 ];
 
+const HANDHELD: Row[] = [
+  ["review", "tablet", "commenter", false, "dock"],
+  ["review", "tablet", "commenter", true, "dock"],
+  ["review", "tablet", "viewer", false, "dock"],
+  ["review", "tablet", "editor", false, "card"],
+  ["review", "tablet", "host", false, "bar"],
+  ["review", "tablet", "host", true, "bar"],
+  ["review", "phone", "host", false, "bar"],
+  ["review", "phone", "commenter", false, "dock"],
+  ["edit", "tablet", "editor", false, "bar"],
+  ["record", "tablet", "commenter", false, "none"],
+];
+
+describe("playerPlacementOf on a handheld held sideways", () => {
+  it.each(HANDHELD)(
+    "%s on a %s shell for a %s (short %s) gives %s",
+    (stage, shell, role, short, placement) => {
+      expect(
+        playerPlacementOf({ stage, shell, role, short, handheld: true }),
+      ).toBe(placement);
+    },
+  );
+});
+
 describe("playerPlacementOf", () => {
   it.each(TABLE)(
     "%s on a %s shell for a %s (short %s) gives %s",
     (stage, shell, role, short, placement) => {
-      expect(playerPlacementOf({ stage, shell, role, short })).toBe(placement);
+      expect(
+        playerPlacementOf({ stage, shell, role, short, handheld: false }),
+      ).toBe(placement);
     },
   );
 });

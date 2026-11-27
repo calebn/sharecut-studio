@@ -16,12 +16,13 @@ import type { ExecuteResult } from "./types";
  * range, a time), so it replaces the pin of text already typed.
  */
 export function openCommentDraft(draft: CommentDraft, replacePin = true): void {
-  const { shellBreakpoint, guestMode } = useDawStore.getState();
+  const { shellBreakpoint, handheldLandscape, guestMode } =
+    useDawStore.getState();
   dispatchComposer({
     type: "open",
     anchor: draft,
     replacePin,
-    listen: listenLayoutOf(shellBreakpoint, guestMode),
+    listen: listenLayoutOf(shellBreakpoint, guestMode, handheldLandscape),
   });
   useDawStore.getState().openStage("review", { section: "queue" });
 }

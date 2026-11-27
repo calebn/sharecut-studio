@@ -65,6 +65,22 @@ beforeEach(() => {
   useDawStore.setState({ stage: "edit", guestMode: null });
 });
 
+describe("StageFrame handheld landscape", () => {
+  it("publishes the one handheld value to the store, so commands and the keymap read what the frame renders", () => {
+    stubViewportShell("tablet", { handheld: true });
+    useDawStore.setState({ handheldLandscape: false });
+    mount();
+    expect(useDawStore.getState().handheldLandscape).toBe(true);
+  });
+
+  it("publishes false when the screen is not a handheld", () => {
+    stubViewportShell("tablet", { handheld: false });
+    useDawStore.setState({ handheldLandscape: true });
+    mount();
+    expect(useDawStore.getState().handheldLandscape).toBe(false);
+  });
+});
+
 describe("StageFrame late word failure", () => {
   const failure = (projectPath: string) => ({
     projectPath,
