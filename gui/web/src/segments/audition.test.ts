@@ -117,6 +117,32 @@ describe("audition", () => {
     expect(useDawStore.getState().followingClientId).toBe("other");
   });
 
+  it("leaves follow alone when a multi-clip row advances on ended", () => {
+    const announce = vi.fn();
+    toggleAudition(row("a", 2), "a");
+    useDawStore.setState({
+      followingClientId: "other",
+      announceStatus: announce,
+    });
+    act(() => {
+      audioElement().dispatchEvent(new Event("ended"));
+    });
+    expect(audioElement().src).toContain("clip=1");
+    expect(useDawStore.getState().followingClientId).toBe("other");
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it("leaves follow alone for a row with no clips", () => {
+    const announce = vi.fn();
+    useDawStore.setState({
+      followingClientId: "other",
+      announceStatus: announce,
+    });
+    toggleAudition(row("empty", 0), "a");
+    expect(useDawStore.getState().followingClientId).toBe("other");
+    expect(announce).not.toHaveBeenCalled();
+  });
+
   it("uses one shared element for every row", () => {
     toggleAudition(row("a"), "a");
     toggleAudition(row("b"), "a");
