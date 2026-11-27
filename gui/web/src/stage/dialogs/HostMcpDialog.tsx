@@ -225,7 +225,8 @@ export function HostMcpDialog({
             </ol>
             {hasProject ? null : (
               <p className="share-dialog-note" role="status">
-                Open an episode first; tools error until a project is open.
+                Open an episode first. Your AI app has nothing to work on until
+                you do.
               </p>
             )}
             <Field
