@@ -1,5 +1,8 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { COPY_FAILED_MESSAGE } from "../src/stage/dialogs/hostMcp";
+import {
+  COPY_FAILED_MESSAGE,
+  UNAVAILABLE_MESSAGE,
+} from "../src/stage/dialogs/hostMcp";
 import { expectPageAxeClean } from "./axe";
 import {
   expectFitsViewport,
@@ -257,6 +260,32 @@ for (const shell of SHELLS) {
       viewport: { width: shell.width, height: shell.height },
       isMobile: shell.touch,
       hasTouch: shell.touch,
+    });
+
+    test("announces unavailability while focus stays on Setup guide", async ({
+      page,
+    }) => {
+      let mounted = true;
+      await page.route(ACTIVITY_ROUTE, (route) =>
+        route.fulfill({
+          json: mounted
+            ? USED_4S
+            : { mounted: false, last_request_at: null, age_seconds: null },
+        }),
+      );
+      await page.clock.install();
+      const dialog = await openConnectAgent(page);
+      await expect(dialog.locator(".host-mcp-activity")).toHaveText(
+        ACTIVITY_LINE,
+      );
+      const guide = dialog.getByRole("link", { name: /Setup guide/ });
+      await guide.focus();
+      mounted = false;
+      await page.clock.runFor(3100);
+      await expect(guide).toBeFocused();
+      await expect(dialog.locator(".host-mcp-activity-live")).toHaveText(
+        UNAVAILABLE_MESSAGE,
+      );
     });
 
     test("the disclosure and the setup link are touch-sized and the address field keeps its place", async ({

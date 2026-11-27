@@ -91,19 +91,28 @@ export function HostMcpDialog({
     }, COPIED_MS);
   });
 
-  // Speak only when the answer changes between two known kinds; never the first one after opening, and never the unavailable one (focus moves to its paragraph, which a screen reader reads).
   useEffect(() => {
     const before = previousClass.current;
     previousClass.current = cls;
-    if (
-      before !== "unknown" &&
-      cls !== "unknown" &&
-      cls !== "unavailable" &&
-      before !== cls
-    ) {
+
+    if (unavailable) {
+      const active = document.activeElement;
+      if (!active || active === document.body) {
+        unavailableRef.current?.focus();
+      } else if (
+        active !== unavailableRef.current &&
+        before !== "unknown" &&
+        before !== cls
+      ) {
+        announce(UNAVAILABLE_MESSAGE);
+      }
+      return;
+    }
+
+    if (before !== "unknown" && cls !== "unknown" && before !== cls) {
       announce(text);
     }
-  }, [cls, announce, text]);
+  }, [cls, unavailable, announce, text]);
 
   useEffect(
     () => () => {
@@ -111,13 +120,6 @@ export function HostMcpDialog({
     },
     [],
   );
-
-  // The copy buttons leave when the answer is "unavailable"; keep focus inside the dialog.
-  useEffect(() => {
-    if (!unavailable) return;
-    const active = document.activeElement;
-    if (!active || active === document.body) unavailableRef.current?.focus();
-  }, [unavailable]);
 
   const clearCopiedTimer = useCallback(() => {
     if (copiedTimer.current) {
