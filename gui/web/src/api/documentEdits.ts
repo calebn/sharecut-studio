@@ -805,7 +805,7 @@ export async function previewDucking(
     type: DocumentCommand.ApplyDucking,
     payload: { dry_run: true },
   };
-  const reply = await postHostDocumentCommand(projectPath, body);
+  const reply = await postHostDocumentCommand(projectPath, body, signal);
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   if (!reply.ok) throw reply.failure;
   return duckingPlan(commandResult(reply.data));

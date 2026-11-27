@@ -16,6 +16,7 @@ import {
   duckingReadyLine,
   duckingRefusal,
   duckingRefusalLine,
+  duckingRefusedMessage,
   duckingTrackCount,
 } from "./duckingCopy";
 
@@ -52,19 +53,31 @@ describe("copy", () => {
 
   it("says the depth in whole or tenth dB, always as a positive number", () => {
     expect(duckingReadyLine(plan(-18, row(true)))).toBe(
-      "Lowers 1 music track by 18 dB while people speak. Your own volume points stay.",
+      "Lowers 1 music track by 18 dB while people speak. Your own volume points above the dip are lowered during speech, never raised, and restored when you duck again.",
     );
     expect(duckingReadyLine(plan(-12.5, row(true), row(true)))).toBe(
-      "Lowers 2 music tracks by 12.5 dB while people speak. Your own volume points stay.",
+      "Lowers 2 music tracks by 12.5 dB while people speak. Your own volume points above the dip are lowered during speech, never raised, and restored when you duck again.",
     );
   });
 
   it("does not claim the audio was rendered again", () => {
     const line = duckingAppliedLine(plan(-18, row(true), row(true)));
     expect(line).toBe(
-      "Music now lowers under speech on 2 music tracks. Play or export to hear it.",
+      "Music now lowers under speech on 2 music tracks. Hear it once the mix refreshes, in play or export.",
     );
     expect(line).not.toMatch(/render/i);
+  });
+
+  it("says user points are lowered during speech and never raised, not that they stay", () => {
+    const line = duckingReadyLine(plan(-18, row(true)));
+    expect(line).toContain("lowered during speech");
+    expect(line).toContain("never raised");
+    expect(line).toContain("restored when you duck again");
+    expect(line).not.toMatch(/points stay/i);
+  });
+
+  it("covers muted and silent music in the no-music line", () => {
+    expect(DUCKING_NO_MUSIC).toMatch(/muted or silent/);
   });
 
   it("never says not found, in any line", () => {
@@ -95,6 +108,20 @@ describe("duckingRefusal", () => {
     const refusal = duckingRefusal(new ApiError("x", code, status));
     expect(refusal).toBe(kind);
     expect(duckingRefusalLine(refusal ?? "none")).toBe(line);
+  });
+
+  it("passes a host refusal through in its own words, and leaves a network failure unreachable", () => {
+    for (const code of [
+      "ducking_too_many_points",
+      "ducking_unknown_track",
+      "ducking_dialogue_target",
+    ])
+      expect(
+        duckingRefusedMessage(new ApiError("Host words.", code, 400)),
+      ).toBe("Host words.");
+    expect(duckingRefusedMessage(new Error("offline"))).toBeNull();
+    expect(duckingRefusedMessage(new ApiError("busy", null, 503))).toBeNull();
+    expect(duckingRefusedMessage(new ApiError("x", null, null))).toBeNull();
   });
 
   it("leaves any other failure to the host's own words", () => {

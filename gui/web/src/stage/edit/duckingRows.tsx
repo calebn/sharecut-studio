@@ -18,6 +18,8 @@ function statusOf(preview: DuckingPreview): string {
       return DUCKING_CHECKING;
     case "unreachable":
       return DUCKING_UNREACHABLE;
+    case "refused":
+      return preview.message;
     case "none":
     case "silent":
     case "changed":
@@ -39,6 +41,8 @@ function blockerOf(
   switch (preview.kind) {
     case "checking":
       return DUCKING_CHECKING;
+    case "refused":
+      return preview.message;
     case "none":
     case "silent":
     case "changed":

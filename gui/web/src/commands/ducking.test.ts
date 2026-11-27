@@ -6,6 +6,7 @@ import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import { ApiError } from "../utils/apiError";
 import { duckingBlocker } from "./ducking";
+import { duckingReplanCount } from "./duckingReplan";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -68,7 +69,7 @@ describe("track.duckUnderSpeech", () => {
       "tok-1",
     );
     expect(toast()?.message).toBe(
-      "Music now lowers under speech on 2 music tracks. Play or export to hear it.",
+      "Music now lowers under speech on 2 music tracks. Hear it once the mix refreshes, in play or export.",
     );
     expect(useDawStore.getState().feedbackToast?.undo).toBe(HEAD);
   });
@@ -114,7 +115,7 @@ describe("track.duckUnderSpeech", () => {
     [
       "ducking_no_targets",
       400,
-      "There is no music to lower yet. Add a music track first.",
+      "There is no music to lower: none is added, or every music track is muted or silent. Add or unmute one.",
     ],
     [
       "ducking_no_dialogue_activity",
@@ -133,7 +134,29 @@ describe("track.duckUnderSpeech", () => {
     expect(toast()?.message).not.toMatch(/not found/i);
   });
 
-  it("re-checks on a stale token instead of applying", async () => {
+  it("asks the inspector to plan again on a stale token, so the dead token is not resent", async () => {
+    vi.mocked(api.applyDuckingCommand).mockRejectedValue(
+      new ApiError("The project changed", "document_conflict", 409),
+    );
+    const before = duckingReplanCount();
+    await execute(
+      "track.duckUnderSpeech",
+      { planToken: "old" },
+      { skipWhen: true },
+    );
+    expect(duckingReplanCount()).toBe(before + 1);
+  });
+
+  it("tells the host's refusal in its own words, without a connectivity claim", async () => {
+    vi.mocked(api.previewDucking).mockRejectedValue(
+      new ApiError("Too many dips.", "ducking_too_many_points", 400),
+    );
+    await execute("track.duckUnderSpeech", {}, { skipWhen: true });
+    expect(toast()?.message).toBe("Too many dips.");
+    expect(toast()?.message).not.toMatch(/could not check|not found/i);
+  });
+
+  it("shows the stale-token toast and applies nothing more", async () => {
     vi.mocked(api.applyDuckingCommand).mockRejectedValue(
       new ApiError("The project changed", "document_conflict", 409),
     );
@@ -189,7 +212,7 @@ describe("track.duckUnderSpeech", () => {
       { skipWhen: true },
     );
     expect(toast()?.message).toBe(
-      "Studio is out of reach. Ducking will apply when it is back.",
+      "Studio is out of reach. Ducking is queued and will try to apply when it is back.",
     );
     expect(toast()?.undo ?? null).toBeNull();
   });
