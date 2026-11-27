@@ -54,6 +54,41 @@ describe("ingestFiles", () => {
     expect(s.ingestBusy).toBe(false);
   });
 
+  it("refuses a non-audio file before any track or upload exists", async () => {
+    const file = new File(["hello"], "notes.txt", { type: "text/plain" });
+
+    await ingestFiles([file], { kind: "new" });
+
+    expect(addTrackMock).not.toHaveBeenCalled();
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
+    const s = useDawStore.getState();
+    expect(s.statusAnnouncement).toBe(
+      "notes.txt is not an audio file. WAV, MP3, M4A, FLAC, AIFF and OGG work.",
+    );
+    expect(s.ingestBusy).toBe(false);
+  });
+
+  it("still imports the audio picked in the same batch as a non-audio file", async () => {
+    addTrackMock.mockResolvedValue({});
+    uploadMock.mockResolvedValue({
+      complete: true,
+      rel_path: "media/good.wav",
+    });
+    refreshMock.mockResolvedValue(minimalProject());
+    const good = new File(["RIFF...."], "good.wav", { type: "audio/wav" });
+    const bad = new File(["hello"], "notes.txt", { type: "text/plain" });
+
+    await ingestFiles([bad, good], { kind: "new" });
+
+    expect(addTrackMock).toHaveBeenCalledTimes(1);
+    expect(addTrackMock.mock.calls[0]?.[1]).toMatchObject({ track_id: "good" });
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().statusAnnouncement).toContain(
+      "notes.txt is not an audio file.",
+    );
+  });
+
   it("refreshes the project after a failed import so files that landed show", async () => {
     addTrackMock.mockResolvedValue({});
     uploadMock.mockRejectedValue(new Error("unsupported audio format"));
