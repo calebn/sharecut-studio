@@ -1,4 +1,11 @@
-import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 import { createPortal } from "react-dom";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { Button } from "./Button";
@@ -58,6 +65,7 @@ type Props = {
   backgroundPolicy: BottomSheetBackgroundPolicy;
   title?: string;
   focusTitleOnOpen?: boolean;
+  initialFocusRef?: RefObject<HTMLElement | null>;
   /** Size while not expanded. */
   size?: BottomSheetSize;
   /** Size while expanded. */
@@ -94,6 +102,7 @@ export function BottomSheet({
   backgroundPolicy,
   title,
   focusTitleOnOpen = false,
+  initialFocusRef,
   size = "half",
   expandedSize = "full",
   children,
@@ -164,7 +173,8 @@ export function BottomSheet({
     open,
     onClose: dismiss,
     panelRef,
-    initialFocusRef: focusTitleOnOpen && title ? headingRef : closeRef,
+    initialFocusRef,
+    fallbackFocusRef: focusTitleOnOpen && title ? headingRef : closeRef,
     mode: "sheet",
     stackKey: title ?? "bottom-sheet",
   });

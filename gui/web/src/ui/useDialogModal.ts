@@ -35,6 +35,7 @@ export type UseDialogModalOptions = {
   onClose: () => void;
   panelRef: RefObject<HTMLElement | null>;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  fallbackFocusRef?: RefObject<HTMLElement | null>;
   /**
    * Element focus returns to on close; default: the control that opened it
    * (`openerControl`: the focused one, or the one just clicked in Safari).
@@ -71,6 +72,7 @@ export function useDialogModal({
   onClose,
   panelRef,
   initialFocusRef,
+  fallbackFocusRef,
   returnFocusRef,
   backgroundSelector = "[data-daw-app-chrome]",
   mode = "modal",
@@ -112,7 +114,7 @@ export function useDialogModal({
         return;
       }
       if (mode === "sheet" && focusHeld(panel.ownerDocument)) return;
-      const preferred = initialFocusRef?.current;
+      const preferred = initialFocusRef?.current ?? fallbackFocusRef?.current;
       if (preferred) {
         preferred.focus();
         return;
@@ -236,6 +238,7 @@ export function useDialogModal({
     open,
     panelRef,
     initialFocusRef,
+    fallbackFocusRef,
     returnFocusRef,
     backgroundSelector,
     mode,

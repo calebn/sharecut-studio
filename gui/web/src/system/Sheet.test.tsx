@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { type ComponentProps, createRef } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Sheet } from "./Sheet";
 
 const panel = () => screen.getByRole("dialog", { name: "Detents" });
@@ -74,5 +74,101 @@ describe("Sheet bottom, fit", () => {
     expect(
       screen.queryByRole("button", { name: /Expand|Collapse/ }),
     ).toBeNull();
+  });
+});
+
+describe("Sheet bottom, initial focus", () => {
+  const frames: FrameRequestCallback[] = [];
+  const nextFrame = () => act(() => frames.shift()?.(0));
+  const holdFrames = () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+  };
+
+  afterEach(() => {
+    frames.length = 0;
+    vi.restoreAllMocks();
+  });
+
+  it("focuses the control initialFocusRef names", () => {
+    holdFrames();
+    const target = createRef<HTMLButtonElement>();
+    render(
+      <Sheet
+        form="bottom"
+        title="Detents"
+        onClose={vi.fn()}
+        initialFocusRef={target}
+      >
+        <button ref={target} type="button">
+          Primary
+        </button>
+      </Sheet>,
+    );
+    nextFrame();
+    expect(screen.getByRole("button", { name: "Primary" })).toHaveFocus();
+  });
+
+  it("falls back to Close, not the height slider, when the ref is empty", () => {
+    holdFrames();
+    render(
+      sheet({
+        detent: "full",
+        initialFocusRef: createRef<HTMLButtonElement>(),
+      }),
+    );
+    nextFrame();
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  });
+
+  it("keeps focus on a control that took it before the first frame", () => {
+    holdFrames();
+    const target = createRef<HTMLButtonElement>();
+    render(
+      <Sheet
+        form="bottom"
+        title="Detents"
+        onClose={vi.fn()}
+        initialFocusRef={target}
+      >
+        <button ref={target} type="button">
+          Primary
+        </button>
+      </Sheet>,
+    );
+    act(() => screen.getByRole("button", { name: "Primary" }).focus());
+    nextFrame();
+    expect(screen.getByRole("button", { name: "Primary" })).toHaveFocus();
+  });
+
+  it("leaves focus on the step's Back when a step is pushed", () => {
+    holdFrames();
+    const target = createRef<HTMLButtonElement>();
+    const ui = (step: Props["step"]) => (
+      <Sheet
+        form="bottom"
+        title="Detents"
+        onClose={vi.fn()}
+        initialFocusRef={target}
+        step={step}
+        footer={
+          <button ref={target} type="button">
+            Done
+          </button>
+        }
+      >
+        <p>Body</p>
+      </Sheet>
+    );
+    const { rerender } = render(ui(null));
+    nextFrame();
+    expect(screen.getByRole("button", { name: "Done" })).toHaveFocus();
+    rerender(
+      ui({ title: "Step", onBack: vi.fn(), children: <p>Step body</p> }),
+    );
+    while (frames.length) nextFrame();
+    expect(screen.getByRole("button", { name: "Back" })).toHaveFocus();
   });
 });
