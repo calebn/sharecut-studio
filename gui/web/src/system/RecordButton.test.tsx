@@ -456,7 +456,7 @@ describe("RecordButton hold and a page interrupt", () => {
     },
   );
 
-  it("a fresh hold after an interrupt stops once", () => {
+  it("guard, passes on develop too: a fresh hold after an interrupt stops once", () => {
     const { button, onStop } = live();
     fireEvent.pointerDown(button, { button: 0 });
     act(() => {
@@ -468,7 +468,7 @@ describe("RecordButton hold and a page interrupt", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it("a height-only resize keeps the hold, which stops once", () => {
+  it("guard, passes on develop too: a height-only resize keeps the hold, which stops once", () => {
     const { button, onStop } = live();
     fireEvent.pointerDown(button, { button: 0 });
     act(() => {
@@ -479,7 +479,7 @@ describe("RecordButton hold and a page interrupt", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it("a full hold with no interrupt stops exactly once", () => {
+  it("guard, passes on develop too: a full hold with no interrupt stops exactly once", () => {
     const { button, onStop } = live();
     fireEvent.pointerDown(button, { button: 0 });
     pass(HOLD_TO_STOP_MS * 3);
@@ -487,7 +487,7 @@ describe("RecordButton hold and a page interrupt", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it("an interrupt after the hold already stopped the take is a no-op", () => {
+  it("guard, passes on develop too: an interrupt after the hold already stopped the take is a no-op", () => {
     const { button, onStop, container } = live();
     fireEvent.pointerDown(button, { button: 0 });
     pass(HOLD_TO_STOP_MS);
@@ -501,7 +501,7 @@ describe("RecordButton hold and a page interrupt", () => {
     ).toBe(false);
   });
 
-  it("listens only while holding and removes its listeners on release, an interrupt and unmount", () => {
+  it("listens only while holding and removes its listeners on release, an interrupt, a completed hold and unmount", () => {
     const tracked = trackInterruptSignals();
     const { button, unmount } = live();
     const idle = tracked.live();
@@ -514,6 +514,10 @@ describe("RecordButton hold and a page interrupt", () => {
       dragInterrupts.blur();
     });
     expect(tracked.live()).toBe(idle);
+    fireEvent.pointerDown(button, { button: 0 });
+    pass(HOLD_TO_STOP_MS);
+    expect(tracked.live()).toBe(idle);
+    fireEvent.pointerUp(button);
     fireEvent.pointerDown(button, { button: 0 });
     unmount();
     expect(tracked.live()).toBe(idle);

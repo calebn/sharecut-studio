@@ -2580,6 +2580,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                       : null;
                   setDragging(true);
                 }}
+                onCancel={() => {
+                  if (grabbed.current === null) return;
+                  live.current.props.onSelect?.(grabbed.current);
+                }}
                 onRelease={() => {
                   grabbed.current = null;
                   setDragging(false);

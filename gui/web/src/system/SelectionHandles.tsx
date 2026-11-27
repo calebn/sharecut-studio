@@ -16,8 +16,17 @@ export type SelectionHandlesProps = {
   onDrag: (edge: HandleEdge, point: { x: number; y: number }) => void;
   /** A grip was taken, before any move. */
   onGrab?: () => void;
-  /** The grip was let go, the browser took the touch, or it lost its pointer capture. */
+  /**
+   * The grab ended: the grip was let go, the browser took the touch, it lost
+   * its pointer capture, or the page was interrupted (blur, pagehide, a hidden
+   * tab, a width change or a rotation).
+   */
   onRelease?: () => void;
+  /**
+   * The page interrupted a grab that had moved the edge, just before
+   * `onRelease`; the host puts the selection back as Escape does.
+   */
+  onCancel?: () => void;
 };
 
 type Grab = {
@@ -69,14 +78,17 @@ export function SelectionHandles({
   onDrag,
   onGrab,
   onRelease,
+  onCancel,
 }: SelectionHandlesProps) {
   const grab = useRef<Grab | null>(null);
   const watch = useDragInterruptWatch();
 
   const cancelGrab = () => {
     watch.stop();
-    if (!grab.current) return;
+    const held = grab.current;
+    if (!held) return;
     grab.current = null;
+    if (held.moved) onCancel?.();
     onRelease?.();
   };
 

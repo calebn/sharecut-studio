@@ -17,6 +17,7 @@ function setup(over: Partial<SelectionHandlesProps> = {}) {
     onDrag: vi.fn(),
     onGrab: vi.fn(),
     onRelease: vi.fn(),
+    onCancel: vi.fn(),
   };
   const view = render(
     <div style={{ position: "relative" }}>
@@ -189,30 +190,42 @@ describe("SelectionHandles and a page interrupt", () => {
   }
 
   it.each(Object.entries(dragInterrupts))(
-    "%s mid-drag ends the grab once, stops reporting and passes no click on release",
+    "%s mid-drag ends the grab once, asks the host to put the selection back and stops reporting",
     (_name, interrupt) => {
-      const clicks = underGrip();
-      const { end, onDrag, onRelease } = setup();
+      const { end, onDrag, onRelease, onCancel } = setup();
       fireEvent.pointerDown(end, { pointerId: 1, clientX: 10, clientY: 20 });
       fireEvent.pointerMove(end, { pointerId: 1, clientX: 30, clientY: 50 });
+      const order: string[] = [];
+      onCancel.mockImplementation(() => order.push("cancel"));
+      onRelease.mockImplementation(() => order.push("release"));
       interrupt();
-      expect(onRelease).toHaveBeenCalledTimes(1);
+      expect(order).toEqual(["cancel", "release"]);
       fireEvent.pointerMove(end, { pointerId: 1, clientX: 60, clientY: 80 });
       fireEvent.pointerUp(end, { pointerId: 1, clientX: 60, clientY: 80 });
       fireEvent.lostPointerCapture(end, { pointerId: 1 });
       expect(onDrag).toHaveBeenCalledTimes(1);
       expect(onRelease).toHaveBeenCalledTimes(1);
-      expect(clicks).toHaveLength(0);
+      expect(onCancel).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("a moved grab let go normally releases without asking for the selection back", () => {
+    const { end, onCancel, onRelease } = setup();
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 10, clientY: 20 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 30, clientY: 50 });
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 30, clientY: 50 });
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 
   it.each(Object.entries(dragInterrupts))(
     "%s before any move passes no click to the word under the grip",
     (_name, interrupt) => {
       const clicks = underGrip();
-      const { start, onDrag, onRelease } = setup();
+      const { start, onDrag, onRelease, onCancel } = setup();
       fireEvent.pointerDown(start, { pointerId: 1, clientX: 50, clientY: 60 });
       interrupt();
+      expect(onCancel).not.toHaveBeenCalled();
       fireEvent.pointerUp(start, { pointerId: 1, clientX: 50, clientY: 60 });
       expect(clicks).toHaveLength(0);
       expect(onDrag).not.toHaveBeenCalled();
@@ -220,7 +233,7 @@ describe("SelectionHandles and a page interrupt", () => {
     },
   );
 
-  it("keeps the grab through a height-only resize", () => {
+  it("guard, passes on develop too: keeps the grab through a height-only resize", () => {
     const clicks = underGrip();
     const { end, onDrag, onRelease } = setup();
     fireEvent.pointerDown(end, { pointerId: 1, clientX: 50, clientY: 60 });
@@ -232,7 +245,7 @@ describe("SelectionHandles and a page interrupt", () => {
     expect(onRelease).toHaveBeenCalledTimes(1);
   });
 
-  it("a tap after an interrupted grab still clicks", () => {
+  it("guard, passes on develop too: a tap after an interrupted grab still clicks", () => {
     const clicks = underGrip();
     const { end } = setup();
     fireEvent.pointerDown(end, { pointerId: 1, clientX: 50, clientY: 60 });
@@ -242,7 +255,7 @@ describe("SelectionHandles and a page interrupt", () => {
     expect(clicks).toHaveLength(1);
   });
 
-  it("removes its listeners after a release, a lost capture and an interrupt, and on unmount", () => {
+  it("removes its listeners after a release, a pointercancel, a lost capture, every interrupt, and on unmount", () => {
     const tracked = trackInterruptSignals();
     const { end, unmount } = setup();
     const idle = tracked.live();
@@ -253,11 +266,17 @@ describe("SelectionHandles and a page interrupt", () => {
     fireEvent.pointerUp(end, { pointerId: 1, clientX: 5, clientY: 5 });
     expect(tracked.live()).toBe(idle);
     grabbed();
-    fireEvent.lostPointerCapture(end, { pointerId: 1 });
+    fireEvent.pointerCancel(end, { pointerId: 1, clientX: 5, clientY: 5 });
     expect(tracked.live()).toBe(idle);
     grabbed();
-    dragInterrupts.blur();
+    fireEvent.lostPointerCapture(end, { pointerId: 1 });
     expect(tracked.live()).toBe(idle);
+    for (const interrupt of Object.values(dragInterrupts)) {
+      grabbed();
+      expect(tracked.live()).toBeGreaterThan(idle);
+      interrupt();
+      expect(tracked.live()).toBe(idle);
+    }
     grabbed();
     unmount();
     expect(tracked.live()).toBe(idle);

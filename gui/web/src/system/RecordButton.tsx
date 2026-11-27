@@ -44,6 +44,8 @@ const RING_RADIUS = 30;
  * it is a square in a ring, and holding it stops the take as the ring fills.
  * Keyboard and assistive tech cannot hold, so Enter or Space asks first. A small
  * caption under the live button says to hold; a tap on the button emphasises the caption.
+ * A hold also ends, without stopping the take, when the page is interrupted: window
+ * blur, pagehide, a hidden tab, a width change or a rotation.
  */
 export function RecordButton({
   face,
@@ -129,8 +131,7 @@ export function RecordButton({
     if (!holding) {
       return;
     }
-    window.clearTimeout(timer.current);
-    setHolding(false);
+    cancelHold();
     if (reasonRef.current !== undefined) {
       return;
     }
