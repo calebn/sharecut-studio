@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { listenForDragInterrupt } from "./useInterruptCancel";
 
-/** `start(cancel)` watches for a page interrupt until `stop()`, a newer `start` or unmount. */
 export function useDragInterruptWatch() {
   const watch = useRef<AbortController | null>(null);
   const stop = useCallback(() => {
