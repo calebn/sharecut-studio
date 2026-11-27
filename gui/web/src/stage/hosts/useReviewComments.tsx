@@ -105,6 +105,7 @@ export function useReviewComments(guest: boolean) {
     guestMode,
     capabilities,
     shell,
+    handheld,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -114,6 +115,7 @@ export function useReviewComments(guest: boolean) {
     guestMode: s.guestMode,
     capabilities: s.shareCapabilities,
     shell: s.shellBreakpoint,
+    handheld: s.handheldLandscape,
   }));
   const role = commentRole(projectPath, guestMode, guest);
   const mayComment = canComment(projectPath, guestMode, capabilities);
@@ -121,7 +123,7 @@ export function useReviewComments(guest: boolean) {
   const mayAction = canSetAction(projectPath, capabilities);
   // The phone Viewer and Commenter page opens the field from the dock, closes
   // it without losing the text, and plays on again if the dock paused it.
-  const listen = listenLayoutOf(shell, guestMode);
+  const listen = listenLayoutOf(shell, guestMode, handheld);
   // Any other guest always has the field, docked at the foot on a phone.
   const showComposer =
     mayComment && (commentDraft !== null || (guest && !listen));
@@ -212,12 +214,12 @@ export function useReviewComments(guest: boolean) {
     if (showComposer && commentDraft) composeRef.current?.focus();
   }, [showComposer, commentDraft]);
   useEffect(() => {
-    if (!showComposer || shell === "phone") return;
+    if (!showComposer || shell === "phone" || listen) return;
     return registerComposerFocus(() => {
       composeRef.current?.focus();
       return document.activeElement === composeRef.current;
     });
-  }, [showComposer, shell]);
+  }, [showComposer, shell, listen]);
   // A link that can no longer comment leaves no draft behind, and plays on what the composer paused.
   useEffect(() => {
     if (!mayComment) dispatchComposer({ type: "reset" });

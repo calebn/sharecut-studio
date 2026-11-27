@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from "react";
+import { useHandheldLandscape } from "../../hooks/useHandheldLandscape";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { useViewportPan } from "../../hooks/useViewportPan";
 import { useDawStore } from "../../state/dawStore";
@@ -21,12 +22,17 @@ export function useShellAttributes(
   surface: "frame" | "home" = "frame",
 ): ShellBreakpoint {
   const shell = useViewportClass();
+  const handheld = useHandheldLandscape();
   useViewportPan();
   const setShellBreakpoint = useDawStore((s) => s.setShellBreakpoint);
+  const setHandheldLandscape = useDawStore((s) => s.setHandheldLandscape);
   useLayoutEffect(() => {
     setShellBreakpoint(shell);
     document.documentElement.dataset.shell = shell;
   }, [shell, setShellBreakpoint]);
+  useLayoutEffect(() => {
+    setHandheldLandscape(handheld);
+  }, [handheld, setHandheldLandscape]);
   useLayoutEffect(() => {
     if (surface === "home") document.documentElement.dataset.surface = "home";
     return () => {

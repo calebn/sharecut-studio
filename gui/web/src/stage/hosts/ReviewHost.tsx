@@ -88,14 +88,16 @@ function ReviewHostAdapter({
   const find = useFindMore(!guest && !isShareProjectKey(projectPath));
   const detail = useTranscriptDetail();
   const shell = useViewportClass();
+  const handheld = useDawStore((s) => s.handheldLandscape);
   const short = useShortViewport();
   const placement = playerPlacementOf({
     stage: "review",
     shell,
     role: stageRoleOf(guestMode),
     short,
+    handheld,
   });
-  const listening = listenLayoutOf(shell, guestMode);
+  const listening = listenLayoutOf(shell, guestMode, handheld);
   useLayoutEffect(() => {
     dispatchComposer({ type: "layout", listen: listening });
   }, [listening]);

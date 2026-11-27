@@ -37,16 +37,23 @@ export function stageRoleOf(guestMode: string | null): StageRole {
   }
 }
 
-/** The phone Listen layout (the dock under a Script) hosts Review: a phone Viewer or Commenter. */
-export function listensOn(shell: ShellBreakpoint, role: StageRole): boolean {
-  return shell === "phone" && !isHostRole(role) && !canEditStage(role);
+/** The phone Listen layout (the dock under a Script) hosts Review: a Viewer or Commenter on the phone shell or a handheld phone held sideways. */
+export function listensOn(
+  shell: ShellBreakpoint,
+  role: StageRole,
+  handheld: boolean,
+): boolean {
+  return (
+    (shell === "phone" || handheld) && !isHostRole(role) && !canEditStage(role)
+  );
 }
 
 export function listenLayoutOf(
   shell: ShellBreakpoint,
   guestMode: string | null,
+  handheld: boolean,
 ): boolean {
-  return listensOn(shell, stageRoleOf(guestMode));
+  return listensOn(shell, stageRoleOf(guestMode), handheld);
 }
 
 export type LandingInput = {

@@ -66,6 +66,43 @@ describe("comment.draftAt pauses the episode it opens a comment on in the phone 
   });
 });
 
+describe("comment.draftAt on a handheld phone held sideways", () => {
+  beforeEach(() => {
+    useDawStore.setState({
+      shellBreakpoint: "tablet",
+      handheldLandscape: true,
+      guestMode: "comment",
+    });
+  });
+
+  it("pauses playback and promises to play it on, as in portrait", async () => {
+    useDawStore.setState({ isPlaying: true, playStartSec: 0 });
+    await executePointerCommand("comment.draftAt", { atTime: 86 });
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().composer.draft?.resume).toBe(true);
+  });
+
+  it("leaves playback alone for an Editor", async () => {
+    useDawStore.setState({
+      guestMode: "edit",
+      isPlaying: true,
+      playStartSec: 0,
+    });
+    await executePointerCommand("comment.draftAt", { atTime: 86 });
+    expect(useDawStore.getState().isPlaying).toBe(true);
+  });
+
+  it("leaves playback alone on a tablet that is not handheld", async () => {
+    useDawStore.setState({
+      handheldLandscape: false,
+      isPlaying: true,
+      playStartSec: 0,
+    });
+    await executePointerCommand("comment.draftAt", { atTime: 86 });
+    expect(useDawStore.getState().isPlaying).toBe(true);
+  });
+});
+
 describe("comment.draftAt on a selection whose words are refreshing", () => {
   it("is refused with the reason and opens no draft", async () => {
     useDawStore.getState().hydrate(

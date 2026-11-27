@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import { cssViewportWidth, readShell } from "../hooks/useViewportClass";
 import type { HistoryEntryId } from "../types/project";
+import { readHandheld } from "../utils/handheldScreen";
 import {
   readLaneHeightPref,
   stepLaneHeightPx,
@@ -350,6 +351,7 @@ type UiSlice = Pick<
   | "showCutAwayUtterances"
   | "timelineFocused"
   | "shellBreakpoint"
+  | "handheldLandscape"
   | "pointerKind"
   | "rulerCovered"
   | "selectionHit"
@@ -380,6 +382,7 @@ type UiSlice = Pick<
   | "setLayerVisible"
   | "setListenLoadFailed"
   | "setShellBreakpoint"
+  | "setHandheldLandscape"
   | "setPointerKind"
   | "setRulerCovered"
   | "setSelectionHit"
@@ -751,6 +754,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     showCutAwayUtterances: false,
     timelineFocused: true,
     shellBreakpoint: readShell(),
+    handheldLandscape: readHandheld(),
     // The capability baseline, so the first render has nothing to correct;
     // usePointerType() keeps it live from pointer events.
     pointerKind: initialPointerKind(),
@@ -911,6 +915,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setLayerVisible: (key, visible) =>
       set((s) => ({ layers: { ...s.layers, [key]: visible } })),
     setListenLoadFailed: (listenLoadFailed) => set({ listenLoadFailed }),
+    setHandheldLandscape: (handheldLandscape) => set({ handheldLandscape }),
     setShellBreakpoint: (shellBreakpoint) => {
       set({ shellBreakpoint });
       // Re-derive from the live timeline: a registered scrollport that measures

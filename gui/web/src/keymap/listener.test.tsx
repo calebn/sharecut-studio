@@ -754,6 +754,7 @@ describe("Q focuses the Review composer", () => {
       shareCapabilities,
       stage: "review",
       shellBreakpoint: "desktop",
+      handheldLandscape: false,
       ...over,
     });
   beforeEach(() => {
@@ -795,6 +796,14 @@ describe("Q focuses the Review composer", () => {
       () =>
         enter("comment", ["view", "play", "comment"], {
           shellBreakpoint: "phone",
+        }),
+    ],
+    [
+      "a handheld phone held sideways",
+      () =>
+        enter("comment", ["view", "play", "comment"], {
+          shellBreakpoint: "tablet",
+          handheldLandscape: true,
         }),
     ],
     ["the host", () => enter(null, null)],

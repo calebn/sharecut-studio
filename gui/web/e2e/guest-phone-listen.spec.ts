@@ -91,7 +91,7 @@ async function expectCommentsReadable(
   await expect(sheet.getByRole("group", { name: "Sort" })).toHaveCount(0);
 }
 
-type Profile = (typeof PROFILES)[number];
+type Profile = { name: string; device: typeof iPhone };
 type Size = { width: number; height: number };
 
 async function seedReview(host: Page, projectPath: string): Promise<void> {
@@ -118,6 +118,7 @@ async function withPhoneGuest(
   role: "commenter" | "viewer" | "editor",
   run: (guest: Page) => Promise<void>,
   colorScheme: "light" | "dark" = "light",
+  screen: Size = size,
 ): Promise<void> {
   await withShareableProject(async (projectPath) => {
     await withBrowserPages(
@@ -127,7 +128,7 @@ async function withPhoneGuest(
         {
           ...profile.device,
           viewport: size,
-          screen: size,
+          screen,
           reducedMotion: "reduce",
           colorScheme,
         },
@@ -772,4 +773,393 @@ test("Pause and return while composing stops playback after the comment closes",
       await expect(play).toBeVisible();
     },
   );
+});
+
+const LANDSCAPES = [
+  { profile: PROFILES[0], size: { width: 844, height: 390 } },
+  { profile: PROFILES[1], size: { width: 915, height: 412 } },
+] as const;
+
+const TABLETS = [
+  { width: 1133, height: 744 },
+  { width: 1180, height: 820 },
+] as const;
+
+const TOUCH_TABLET: Profile = { name: "touch tablet", device: iPhone };
+
+const shellOf = (guest: Page) =>
+  guest.evaluate(() => ({
+    shell: document.documentElement.dataset.shell,
+    player: document.documentElement.dataset.player ?? null,
+    dock: document.querySelectorAll(".sys-listen-dock").length,
+  }));
+
+for (const { profile, size } of LANDSCAPES) {
+  const where = `${profile.name} ${size.width}x${size.height} held sideways`;
+
+  test(`a Commenter gets the Listen dock and no text field until Comment on ${where}`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(browser, profile, size, "commenter", async (guest) => {
+      await expect(guest.locator(".sys-listen-dock")).toBeVisible();
+      expect(await shellOf(guest)).toMatchObject({
+        player: "dock",
+        dock: 1,
+      });
+      await expect(commentButton(guest)).toBeVisible();
+      await expect(guest.getByRole("textbox")).toHaveCount(0);
+      await expectNoHorizontalScroll(guest, size.width);
+    });
+  });
+
+  test(`a Viewer gets the Listen dock without a Comment button on ${where}`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(browser, profile, size, "viewer", async (guest) => {
+      await expect(guest.locator(".sys-listen-dock")).toBeVisible();
+      await expect(guest.getByRole("textbox")).toHaveCount(0);
+      await expect(commentButton(guest)).toHaveCount(0);
+    });
+  });
+
+  test(`Comment pauses playback and opens the composer on ${where}`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(browser, profile, size, "commenter", async (guest) => {
+      await guest
+        .getByRole("button", { name: "Play", exact: true })
+        .tap({ timeout: 10_000 });
+      await expect(
+        guest.getByRole("button", { name: "Pause", exact: true }),
+      ).toBeVisible();
+      await commentButton(guest).tap({ timeout: 10_000 });
+      await expect(
+        composer(guest).getByRole("textbox", { name: "Comment", exact: true }),
+      ).toBeFocused();
+      await expect(
+        guest.getByRole("button", { name: "Play", exact: true }),
+      ).toBeVisible();
+    });
+  });
+
+  test(`rotating with a typed draft keeps the draft and does not pause on ${where}`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(browser, profile, size, "commenter", async (guest) => {
+      await commentButton(guest).tap({ timeout: 10_000 });
+      const field = composer(guest).getByRole("textbox", {
+        name: "Comment",
+        exact: true,
+      });
+      await field.fill("Tighten this pause");
+      await guest.setViewportSize({ width: size.height, height: size.width });
+      await expect(field).toHaveValue("Tighten this pause");
+      await guest
+        .getByRole("button", { name: "Play", exact: true })
+        .tap({ timeout: 10_000 });
+      const pause = guest.getByRole("button", { name: "Pause", exact: true });
+      await expect(pause).toBeVisible();
+      await guest.setViewportSize(size);
+      await expect(field).toHaveValue("Tighten this pause");
+      await expect(pause).toBeVisible();
+    });
+  });
+}
+
+/**
+ * What of `el` shows: the share of a 5 x 5 grid of points inside its box that
+ * is in the viewport and hit-tests to the element itself, so a clip by an
+ * ancestor, the dock or the screen edge all count (an overflow walk would
+ * wrongly clip a fixed element).
+ */
+async function visibleShare(locator: Locator): Promise<number> {
+  return locator.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    let hit = 0;
+    for (let i = 0; i < 5; i++) {
+      for (let j = 0; j < 5; j++) {
+        const x = r.left + 2 + ((r.width - 4) * i) / 4;
+        const y = r.top + 2 + ((r.height - 4) * j) / 4;
+        const at = document.elementFromPoint(x, y);
+        if (at && el.contains(at)) hit++;
+      }
+    }
+    return hit / 25;
+  });
+}
+
+const HELD = { width: 844, height: 390 } as const;
+
+test("held sideways at 844x390 the sheets and toast rest on the Listen dock, not on tablet chrome", async ({
+  browser,
+}) => {
+  await withPhoneGuest(
+    browser,
+    PROFILES[0],
+    HELD,
+    "commenter",
+    async (guest) => {
+      expect(await shellOf(guest)).toMatchObject({
+        shell: "tablet",
+        player: "dock",
+      });
+      const dock = guest.locator(".sys-listen-dock");
+      const box = await dock.boundingBox();
+      expect(box).not.toBeNull();
+      // The dock is fixed to the bottom edge, in view.
+      expect(
+        Math.abs((box?.y ?? 0) + (box?.height ?? 0) - HELD.height),
+      ).toBeLessThanOrEqual(1);
+      // The reserve the sheets and the toast rest on is the dock's own height
+      // (stage-frame.css keys it on data-player, not on the phone shell).
+      const reserve = await guest.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.style.cssText =
+          "position:fixed;visibility:hidden;inline-size:1px;block-size:var(--frame-bottom-chrome)";
+        document.body.append(probe);
+        const h = probe.getBoundingClientRect().height;
+        probe.remove();
+        return h;
+      });
+      expect(reserve).toBeGreaterThanOrEqual((box?.height ?? 0) - 1);
+      expect(reserve).toBeLessThanOrEqual((box?.height ?? 0) + 2);
+      await commentsRow(guest).tap({ timeout: 10_000 });
+      await expectRestsOnDock(
+        guest,
+        guest.getByRole("dialog", { name: "Comments" }),
+      );
+    },
+  );
+});
+
+test("a handheld's window too tall to fold still rests its sheets on the dock, not on the tablet Player", async ({
+  browser,
+}) => {
+  // A 412x915 phone screen with a 820x640 window: the tablet shell, a frame
+  // that is not short, so only the unfolded dock rule (stage-frame.css keyed
+  // on data-player, not on the phone shell) sets the reserve.
+  await withPhoneGuest(
+    browser,
+    PROFILES[1],
+    { width: 820, height: 640 },
+    "commenter",
+    async (guest) => {
+      expect(await shellOf(guest)).toMatchObject({
+        shell: "tablet",
+        player: "dock",
+      });
+      expect(
+        await guest.evaluate(
+          () => "frameShort" in document.documentElement.dataset,
+        ),
+      ).toBe(false);
+      const dockBox = await guest.locator(".sys-listen-dock").boundingBox();
+      const reserve = await guest.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.style.cssText =
+          "position:fixed;visibility:hidden;inline-size:1px;block-size:var(--frame-bottom-chrome)";
+        document.body.append(probe);
+        const h = probe.getBoundingClientRect().height;
+        probe.remove();
+        return h;
+      });
+      expect(reserve).toBeGreaterThanOrEqual((dockBox?.height ?? 0) - 1);
+      expect(reserve).toBeLessThanOrEqual((dockBox?.height ?? 0) + 2);
+      await commentsRow(guest).tap({ timeout: 10_000 });
+      await expectRestsOnDock(
+        guest,
+        guest.getByRole("dialog", { name: "Comments" }),
+      );
+    },
+    "light",
+    { width: 412, height: 915 },
+  );
+});
+
+test("held sideways at 844x390 the posted toast clears the Listen dock", async ({
+  browser,
+}) => {
+  await withPhoneGuest(
+    browser,
+    PROFILES[0],
+    HELD,
+    "commenter",
+    async (guest) => {
+      await commentButton(guest).tap({ timeout: 10_000 });
+      await composer(guest)
+        .getByRole("textbox", { name: "Comment", exact: true })
+        .fill("Loved the intro");
+      await composer(guest)
+        .getByRole("textbox", { name: "Your name" })
+        .fill("Riley");
+      await composer(guest)
+        .getByRole("button", { name: "Post", exact: true })
+        .tap();
+      const toast = guest.locator(".ui-toast-region--app .ui-toast");
+      await expect(toast).toContainText("Comment posted at");
+      await expect(toast).toBeInViewport({ ratio: 1 });
+      await guest.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      const toastBox = await toast.boundingBox();
+      const dockBox = await guest.locator(".sys-listen-dock").boundingBox();
+      expect(toastBox && dockBox).toBeTruthy();
+      if (!toastBox || !dockBox) return;
+      expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(dockBox.y + 1);
+    },
+  );
+});
+
+test("held sideways at 844x390 a long-pressed word's selection bar is not clipped", async ({
+  browser,
+}) => {
+  await withPhoneGuest(
+    browser,
+    PROFILES[0],
+    HELD,
+    "commenter",
+    async (guest) => {
+      // The Listen layout gets the phone Script (17/28 type), not the desktop one.
+      expect(
+        await guest
+          .locator(".sys-script-word")
+          .first()
+          .evaluate((el) => Number.parseFloat(getComputedStyle(el).lineHeight)),
+      ).toBeGreaterThan(27);
+      await guest.locator(".sys-script-word").first().tap({ timeout: 10_000 });
+      const bar = guest.getByRole("group", { name: "Selection actions" });
+      await expect(bar).toBeVisible();
+      expect(await visibleShare(bar)).toBeGreaterThan(0.99);
+      expect(await reached(bar.getByRole("button", { name: "Comment" }))).toBe(
+        true,
+      );
+      const barBox = await bar.boundingBox();
+      const dockBox = await guest.locator(".sys-listen-dock").boundingBox();
+      expect((barBox?.y ?? 0) + (barBox?.height ?? 0)).toBeLessThanOrEqual(
+        (dockBox?.y ?? 0) + 1,
+      );
+    },
+  );
+});
+
+for (const size of [
+  { width: 740, height: 360 },
+  { width: 800, height: 360 },
+] as const) {
+  test(`the Listen layout fits at ${size.width}x${size.height} with the composer open`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(
+      browser,
+      PROFILES[1],
+      size,
+      "commenter",
+      async (guest) => {
+        expect(await shellOf(guest)).toMatchObject({ player: "dock" });
+        await expect(scrubber(guest)).toBeVisible();
+        await expectNoHorizontalScroll(guest, size.width);
+        await expectTouchTarget(commentButton(guest));
+        await commentButton(guest).tap({ timeout: 10_000 });
+        const field = composer(guest).getByRole("textbox", {
+          name: "Comment",
+          exact: true,
+        });
+        await expect(field).toBeFocused();
+        for (const control of [
+          field,
+          composer(guest).getByRole("textbox", { name: "Your name" }),
+          composer(guest).getByRole("button", { name: "Post", exact: true }),
+        ]) {
+          const box = await control.boundingBox();
+          const dockBox = await guest.locator(".sys-listen-dock").boundingBox();
+          expect(box && dockBox).toBeTruthy();
+          expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+          expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
+            (dockBox?.y ?? 0) + 1,
+          );
+          expect(await reached(control)).toBe(true);
+        }
+        await expectNoHorizontalScroll(guest, size.width);
+      },
+    );
+  });
+}
+
+for (const size of TABLETS) {
+  test(`a Commenter on a ${size.width}x${size.height} tablet keeps the tablet layout and Comment leaves playback alone`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(
+      browser,
+      TOUCH_TABLET,
+      size,
+      "commenter",
+      async (guest) => {
+        expect(await shellOf(guest)).toEqual({
+          shell: "tablet",
+          player: null,
+          dock: 0,
+        });
+        await guest
+          .getByRole("button", { name: "Play", exact: true })
+          .first()
+          .click({ timeout: 10_000 });
+        const pause = guest.getByRole("button", { name: "Pause", exact: true });
+        await expect(pause).toBeVisible();
+        await guest
+          .getByRole("button", { name: "Comment", exact: true })
+          .first()
+          .click({ timeout: 10_000 });
+        await expect(pause).toBeVisible();
+      },
+    );
+  });
+}
+
+for (const role of ["editor"] as const) {
+  test(`an ${role} held sideways at 844x390 keeps the tablet shell without the dock`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(
+      browser,
+      PROFILES[0],
+      LANDSCAPES[0].size,
+      role,
+      async (guest) => {
+        expect(await shellOf(guest)).toEqual({
+          shell: "tablet",
+          player: null,
+          dock: 0,
+        });
+      },
+    );
+  });
+}
+
+test("the host held sideways at 844x390 keeps the tablet shell without the dock", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {
+          ...PROFILES[0].device,
+          viewport: LANDSCAPES[0].size,
+          screen: LANDSCAPES[0].size,
+        },
+      ],
+      async ([host]) => {
+        await openHostShare(host!, projectPath);
+        expect(await shellOf(host!)).toEqual({
+          shell: "tablet",
+          player: null,
+          dock: 0,
+        });
+      },
+    );
+  });
 });

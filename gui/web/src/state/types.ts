@@ -378,6 +378,8 @@ export interface DawState {
   /** Bumped by every selection that arrived from the wire, so a listener can tell it from the person's own navigation. */
   remoteSelectionRevision: number;
   shellBreakpoint: ShellBreakpoint;
+  /** A handheld phone held sideways (utils/handheldScreen). */
+  handheldLandscape: boolean;
   pointerKind: PointerKind;
   /** The `tickKey`s of the ruler labels a presence flag sits over. */
   rulerCovered: ReadonlySet<string>;
@@ -572,6 +574,7 @@ export interface DawState {
   measureTimelineViewport: () => number;
   /** Also re-stores `timelineViewportWidth` from the live timeline or the new shell's estimate. */
   setShellBreakpoint: (bp: ShellBreakpoint) => void;
+  setHandheldLandscape: (handheld: boolean) => void;
   setPointerKind: (kind: PointerKind) => void;
   /** Keeps the current set when `covered` has the same members, so a subscriber does not render for it. */
   setRulerCovered: (covered: ReadonlySet<string>) => void;

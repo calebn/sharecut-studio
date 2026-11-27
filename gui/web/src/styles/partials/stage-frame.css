@@ -50,14 +50,14 @@ html[data-frame-short][data-shell="phone"] {
 
 /* A phone Viewer or Commenter has no tab bar, and the Listen dock is the
    Player: sheets and the toast rest on the dock alone. */
-html[data-shell="phone"][data-player="dock"] {
+html[data-player="dock"] {
   --frame-bottom-chrome: calc(
     var(--player-dock-height) +
     env(safe-area-inset-bottom)
   );
 }
 
-html[data-shell="phone"][data-player="dock"][data-frame-short] {
+html[data-player="dock"][data-frame-short] {
   --frame-bottom-chrome: calc(
     var(--player-height) +
     env(safe-area-inset-bottom)

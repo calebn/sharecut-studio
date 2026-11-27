@@ -4,6 +4,8 @@ import { STAGE_IDS, type StageId, type StageRole } from "../types/stage";
 import {
   type LandingInput,
   landingStage,
+  listenLayoutOf,
+  listensOn,
   mobileModeForStage,
   STAGE_FOR_TAB,
   stageRoleOf,
@@ -124,5 +126,41 @@ describe("tab and stage mapping", () => {
     for (const stage of ["record", "prepare", "deliver"] as const) {
       expect(mobileModeForStage(stage, "text")).toBe("more");
     }
+  });
+});
+
+describe("listensOn", () => {
+  const GUESTS: StageRole[] = ["viewer", "commenter"];
+  const OTHERS: StageRole[] = ["host", "editor"];
+
+  it.each(GUESTS)("a %s listens on the phone shell", (role) => {
+    expect(listensOn("phone", role, false)).toBe(true);
+    expect(listensOn("phone", role, true)).toBe(true);
+  });
+
+  it.each(GUESTS)(
+    "a %s on a handheld held sideways listens on the tablet shell",
+    (role) => {
+      expect(listensOn("tablet", role, true)).toBe(true);
+    },
+  );
+
+  it.each(GUESTS)("a %s on a tablet that is not handheld does not", (role) => {
+    expect(listensOn("tablet", role, false)).toBe(false);
+    expect(listensOn("desktop", role, false)).toBe(false);
+  });
+
+  it.each(OTHERS)("a %s never listens, handheld or not", (role) => {
+    for (const shell of ["phone", "tablet", "desktop"] as const)
+      for (const handheld of [false, true])
+        expect(listensOn(shell, role, handheld)).toBe(false);
+  });
+
+  it("listenLayoutOf reads the role from the share mode", () => {
+    expect(listenLayoutOf("tablet", "comment", true)).toBe(true);
+    expect(listenLayoutOf("tablet", "view", true)).toBe(true);
+    expect(listenLayoutOf("tablet", "edit", true)).toBe(false);
+    expect(listenLayoutOf("tablet", null, true)).toBe(false);
+    expect(listenLayoutOf("tablet", "comment", false)).toBe(false);
   });
 });

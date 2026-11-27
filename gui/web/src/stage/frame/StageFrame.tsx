@@ -49,6 +49,7 @@ function StageFrameAdapter({
   children,
 }: StageFrameProps) {
   const shell = useShellAttributes();
+  const handheld = useDawStore((s) => s.handheldLandscape);
   const shortViewport = useShortViewport();
   const { stage, role, setTimelineFocused } = useDawStore(
     useShallow((s) => ({
@@ -62,6 +63,7 @@ function StageFrameAdapter({
     shell,
     role,
     short: shortViewport,
+    handheld,
   });
   usePlayerPlacementAttribute(placement);
   useAnnounceStageSwitch(stage);
