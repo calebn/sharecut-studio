@@ -23,11 +23,6 @@ export class UnreadStore {
   markSeen(notes: readonly NoteItem[]): void {
     for (const item of notes) this.ids.add(item.id);
   }
-
-  reset(): void {
-    this.ids.clear();
-    this.seeded = false;
-  }
 }
 
 const BADGE_CAP = 99;

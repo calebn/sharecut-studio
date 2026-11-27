@@ -378,6 +378,56 @@ describe("Record stage host phone Comments sheet (#4660)", () => {
     );
     expect(badge()).toHaveTextContent("1");
   });
+
+  // Reads the DOM insertions of one synchronous act, so a badge that shows for
+  // a frame and is then removed still fails the test.
+  const switchRoomBadgeInserts = async (strict = false) => {
+    stubViewportShell("phone");
+    setRoom(recording([comment("old", "p_g")]));
+    if (strict) {
+      render(
+        <StrictMode>
+          <Harness capture={{}} />
+        </StrictMode>,
+      );
+    } else {
+      mount();
+    }
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    const inserted: string[] = [];
+    const watch = new MutationObserver(() => {});
+    watch.observe(document.body, { childList: true, subtree: true });
+    act(() =>
+      setRoom({
+        ...recording([1, 2, 3].map((n) => comment(`n${n}`, "p_g"))),
+        session_id: "room2",
+        server_time_ns: 40,
+      }),
+    );
+    for (const record of watch.takeRecords()) {
+      for (const node of record.addedNodes) {
+        if (
+          node instanceof Element &&
+          (node.matches(".sys-dock-badge--inline") ||
+            node.querySelector(".sys-dock-badge--inline"))
+        ) {
+          inserted.push(node.outerHTML);
+        }
+      }
+    }
+    watch.disconnect();
+    return inserted;
+  };
+
+  it("never commits a badge for the new room's comments while switching rooms", async () => {
+    expect(await switchRoomBadgeInserts()).toEqual([]);
+    expect(badge()).toBeNull();
+  });
+
+  it("never commits that badge under StrictMode either", async () => {
+    expect(await switchRoomBadgeInserts(true)).toEqual([]);
+    expect(badge()).toBeNull();
+  });
 });
 
 describe("Record stage", () => {
