@@ -2,6 +2,7 @@ import { mayNudge } from "../../edit/mayNudge";
 import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../../edit/nudge";
 import { softBoundaries } from "../../edit/nudgeBoundaries";
 import { GHOST_CLICK_MS } from "../../hooks/gestureConstants";
+import { listenForRotation } from "../../hooks/useInterruptCancel";
 import { useDawStore } from "../../state/dawStore";
 import type { ProjectView } from "../../types/project";
 import type { HitPoint } from "../hitCandidates";
@@ -308,10 +309,13 @@ function watch(s: Session): () => void {
   const onEnd = (event: PointerEvent) => {
     s.touches.delete(event.pointerId);
   };
+  const rotation = new AbortController();
+  listenForRotation(() => end(s, "cancel"), rotation.signal);
   window.addEventListener("pointerdown", onDown, true);
   window.addEventListener("pointerup", onEnd, true);
   window.addEventListener("pointercancel", onEnd, true);
   return () => {
+    rotation.abort();
     window.removeEventListener("pointerdown", onDown, true);
     window.removeEventListener("pointerup", onEnd, true);
     window.removeEventListener("pointercancel", onEnd, true);

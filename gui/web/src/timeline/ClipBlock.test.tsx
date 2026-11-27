@@ -16,6 +16,7 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { place, press } from "../test/hitDom";
+import { pageRotations, resetViewport } from "../test/pageInterrupts";
 import type { ClipRow, ProjectView } from "../types/project";
 import { _resetCoachTipsForTests, coachTipOwner } from "../utils/coachTip";
 import { ClipBlock } from "./ClipBlock";
@@ -24,6 +25,7 @@ import { clipBlockGeometry } from "./clipBlockGeometry";
 import { HitRouterProvider } from "./hitRouterContext";
 import { attachHitRouting, type HitRouter } from "./hitRouting";
 import {
+  cancelPrecision,
   precisionHandoff,
   precisionView,
 } from "./precision/precisionController";
@@ -1127,6 +1129,7 @@ describe("ClipBlock waveform", () => {
       vi.mocked(setClipFade).mockClear();
       loadBoundaryContext.mockClear();
     });
+    afterEach(resetViewport);
 
     it("rolls back the real precision driver's preview on router-owned native cancellation", async () => {
       const { container } = renderWithKeymap(clip);
@@ -1165,6 +1168,96 @@ describe("ClipBlock waveform", () => {
         });
         await act(async () => {});
         expect(trimClipEdge).not.toHaveBeenCalled();
+      } finally {
+        act(() => router.dispose());
+      }
+    });
+
+    it.each([
+      ["a width change", () => pageRotations.widthResize()],
+      ["orientationchange", () => pageRotations.orientationchange()],
+    ])(
+      "ends a direct precision drag on %s with no write, and the same drag started again saves once",
+      async (_name, rotate) => {
+        const { container } = renderWithKeymap(clip);
+        container.classList.add("stage-frame--phone");
+        useDawStore.setState({ zoomPxPerSec: 1000 });
+        const handle = container.querySelector(
+          ".trim-handle.out",
+        ) as HTMLElement;
+        place(handle, { left: 100, top: 0, right: 144, bottom: 44 });
+        const router = attachHitRouting(container, {
+          precision: precisionHandoff,
+        });
+        container.addEventListener(
+          "pointerdown",
+          (event) => {
+            if (router.defers(event)) event.stopPropagation();
+          },
+          true,
+        );
+        try {
+          act(() => {
+            press(handle, "pointerdown", 120, 20);
+            router.longPress();
+          });
+          act(() => {
+            press(handle, "pointermove", 140, 20);
+          });
+          expect(precisionView()?.variant).toBe("direct");
+          act(() => rotate());
+          expect(precisionView()).toBeNull();
+          expect(container.querySelector(".clip-trim-ghost")).toBeNull();
+          expect(handle.hasAttribute("data-hit-armed")).toBe(false);
+          act(() => {
+            press(handle, "pointerup", 140, 20);
+          });
+          await act(async () => {});
+          expect(trimClipEdge).not.toHaveBeenCalled();
+
+          act(() => {
+            press(handle, "pointerdown", 120, 20);
+            router.longPress();
+          });
+          act(() => {
+            press(handle, "pointermove", 140, 20);
+          });
+          expect(precisionView()?.variant).toBe("direct");
+          act(() => {
+            press(handle, "pointerup", 140, 20);
+          });
+          await act(async () => {});
+          expect(trimClipEdge).toHaveBeenCalledOnce();
+        } finally {
+          act(() => router.dispose());
+        }
+      },
+    );
+
+    it("keeps a direct precision drag through a height-only resize", () => {
+      const { container } = renderWithKeymap(clip);
+      container.classList.add("stage-frame--phone");
+      useDawStore.setState({ zoomPxPerSec: 1000 });
+      const handle = container.querySelector(".trim-handle.out") as HTMLElement;
+      place(handle, { left: 100, top: 0, right: 144, bottom: 44 });
+      const router = attachHitRouting(container, {
+        precision: precisionHandoff,
+      });
+      container.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (router.defers(event)) event.stopPropagation();
+        },
+        true,
+      );
+      try {
+        act(() => {
+          press(handle, "pointerdown", 120, 20);
+          router.longPress();
+        });
+        act(() => pageRotations.heightResize());
+        expect(precisionView()?.variant).toBe("direct");
+        act(() => cancelPrecision());
       } finally {
         act(() => router.dispose());
       }

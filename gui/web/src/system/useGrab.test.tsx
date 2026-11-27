@@ -1,5 +1,6 @@
 import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { pageRotations, resetViewport } from "../test/pageInterrupts";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 
 function Part({
@@ -183,7 +184,10 @@ describe("useGrab interruptions", () => {
       </button>
     );
   }
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetViewport();
+  });
   const grabbed = (ends: boolean[]) => {
     render(<Counted ends={ends} />);
     const part = screen.getByRole("button");
@@ -213,6 +217,35 @@ describe("useGrab interruptions", () => {
       vi.restoreAllMocks();
     },
   );
+
+  it.each([
+    ["a width change", () => pageRotations.widthResize()],
+    ["orientationchange", () => pageRotations.orientationchange()],
+    [
+      "both events of one rotation",
+      () => {
+        pageRotations.widthResize();
+        pageRotations.orientationchange();
+      },
+    ],
+  ])(
+    "cancels a moved drag on %s, once, and ignores the release",
+    (_name, rotate) => {
+      const ends: boolean[] = [];
+      const part = grabbed(ends);
+      rotate();
+      fireEvent.pointerUp(part, { pointerId: 1, clientX: 40, clientY: 0 });
+      expect(ends).toEqual([false]);
+    },
+  );
+
+  it("keeps a drag going through a height-only resize", () => {
+    const ends: boolean[] = [];
+    const part = grabbed(ends);
+    pageRotations.heightResize();
+    fireEvent.pointerUp(part, { pointerId: 1, clientX: 40, clientY: 0 });
+    expect(ends).toEqual([true]);
+  });
 
   it("keeps a drag going when the tab is only shown again", () => {
     const ends: boolean[] = [];

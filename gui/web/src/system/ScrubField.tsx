@@ -10,7 +10,7 @@ import {
 } from "react";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { DOUBLE_TAP_MS, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
-import { listenForInterrupt } from "../hooks/useInterruptCancel";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 import {
   clamp,
   factorScale,
@@ -300,7 +300,7 @@ export function ScrubField({
       gesture.active = true;
       clearLevelReset();
       gesture.stop = new AbortController();
-      listenForInterrupt(cancelDrag, gesture.stop.signal);
+      listenForDragInterrupt(cancelDrag, gesture.stop.signal);
       if (event.pointerType === "touch") {
         listenForDragEscape(
           () => drag.current === gesture,

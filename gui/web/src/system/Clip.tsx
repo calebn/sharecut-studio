@@ -10,7 +10,7 @@ import {
   useRef,
 } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
-import { listenForInterrupt } from "../hooks/useInterruptCancel";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 import { presenceColorVar } from "../presence/colors";
 import { formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
@@ -297,7 +297,7 @@ export const Clip = memo(function Clip({
       },
     };
     document.addEventListener("keydown", escapeDrag, true);
-    listenForInterrupt(abort, interrupts.signal);
+    listenForDragInterrupt(abort, interrupts.signal);
     capturePointer(event);
   };
   const move = (event: PointerEvent<HTMLElement>) => {

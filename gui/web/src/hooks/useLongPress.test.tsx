@@ -1,7 +1,12 @@
 import { fireEvent, render } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type PageInterrupt, pageInterrupts } from "../test/pageInterrupts";
+import {
+  type PageInterrupt,
+  pageInterrupts,
+  pageRotations,
+  resetViewport,
+} from "../test/pageInterrupts";
 import { useLongPress } from "./useLongPress";
 
 function Harness({ onLongPress }: { onLongPress: () => void }) {
@@ -23,6 +28,7 @@ describe("useLongPress", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    resetViewport();
   });
 
   it("uses the latest callback for a released press without restarting its fallback", () => {
@@ -379,6 +385,63 @@ describe("useLongPress", () => {
         fireEvent.pointerDown(window, { pointerType: "touch", pointerId: 3 });
         expect(onLongPress).toHaveBeenCalledOnce();
         expectFreshPress(target, onLongPress, 2);
+      },
+    );
+
+    const rotations = Object.keys(pageRotations).filter(
+      (kind) => kind !== "heightResize",
+    ) as ("widthResize" | "orientationchange")[];
+
+    it.each(rotations)(
+      "drops an armed press before it is ready on %s",
+      (kind) => {
+        const { onLongPress, target } = setup();
+        press(target);
+        vi.advanceTimersByTime(300);
+        pageRotations[kind]();
+        vi.advanceTimersByTime(300);
+        fireEvent.pointerUp(target, { pointerId: 1 });
+        vi.runOnlyPendingTimers();
+        expect(onLongPress).not.toHaveBeenCalled();
+        expect(vi.getTimerCount()).toBe(0);
+        expectFreshPress(target, onLongPress, 1);
+      },
+    );
+
+    it.each(rotations)("drops a ready press on %s", (kind) => {
+      const { onLongPress, target } = setup();
+      press(target);
+      vi.advanceTimersByTime(600);
+      pageRotations[kind]();
+      expect(fireEvent.contextMenu(target)).toBe(true);
+      fireEvent.pointerUp(target, { pointerId: 1 });
+      vi.runOnlyPendingTimers();
+      expect(onLongPress).not.toHaveBeenCalled();
+      expectFreshPress(target, onLongPress, 1);
+    });
+
+    it("keeps a ready press through a height-only resize", () => {
+      const { onLongPress, target } = setup();
+      press(target);
+      vi.advanceTimersByTime(600);
+      pageRotations.heightResize();
+      fireEvent.pointerUp(target, { pointerId: 1 });
+      vi.advanceTimersByTime(500);
+      expect(onLongPress).toHaveBeenCalledOnce();
+    });
+
+    it.each(rotations)(
+      "does not open or drop a released press that is waiting out the ghost click on %s",
+      (kind) => {
+        const { onLongPress, onClick, target } = setup();
+        hold(target);
+        vi.advanceTimersByTime(100);
+        pageRotations[kind]();
+        expect(onLongPress).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(400);
+        expect(onLongPress).toHaveBeenCalledExactlyOnceWith(target);
+        fireEvent.click(target);
+        expect(onClick).not.toHaveBeenCalled();
       },
     );
 
