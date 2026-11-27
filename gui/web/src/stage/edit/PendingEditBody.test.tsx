@@ -441,7 +441,9 @@ describe("PendingEditBody", () => {
       });
       render(<PendingEditBody edit={edit} />);
       expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-      fireEvent.click(await screen.findByRole("button", { name: "Leave" }));
+      const leave = screen.getByRole("button", { name: "Leave" });
+      await waitFor(() => expect(leave).toBeEnabled());
+      fireEvent.click(leave);
       await waitFor(() =>
         expect(applySuggestedActions).toHaveBeenCalledExactlyOnceWith(
           "/tmp/p.json",
@@ -1195,12 +1197,17 @@ describe("PendingEditBody", () => {
     });
     expect(useDawStore.getState().inspectorKey).not.toBeNull();
     render(<PendingEditBody edit={sessionCut} />);
-    await user.click(await screen.findByRole("button", { name: "Cut anyway" }));
+    const cutAnyway = screen.getByRole("button", { name: "Cut anyway" });
+    await waitFor(() => expect(cutAnyway).toBeEnabled());
+    await user.click(cutAnyway);
     expect(waiveTranscriptRefine).toHaveBeenCalledWith(
       "/tmp/p.json",
       CUT_ANYWAY_REASON,
     );
     expect(useDawStore.getState().pendingRefineGate).toBeNull();
+    await waitFor(() =>
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    );
     expect(screen.getByRole("status")).toHaveTextContent(/Retry approval/);
   });
 
@@ -1425,6 +1432,9 @@ describe("PendingEditBody", () => {
         expect(
           screen.getByRole("spinbutton", { name: "Source start" }),
         ).toHaveAttribute("aria-valuetext", "10.000000 s");
+        await waitFor(() =>
+          expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+        );
         expect(screen.queryByRole("status")).toBeNull();
       },
     );
@@ -1664,6 +1674,7 @@ describe("PendingEditBody", () => {
       expect(await screen.findByText(/end > start/)).toBeInTheDocument();
       expect(updatePendingEdit).not.toHaveBeenCalled();
       const box = screen.getByRole("spinbutton", { name: "Source end" });
+      await waitFor(() => expect(box).not.toHaveAttribute("aria-readonly"));
       box.focus();
       await user.keyboard("{Enter}");
       const input = screen.getByRole("textbox", { name: "Source end" });
