@@ -5,6 +5,7 @@ import {
   useEffectEvent,
   useRef,
 } from "react";
+import { listenForDragInterrupt } from "../../hooks/useInterruptCancel";
 import { capturePointer, pointerRatio } from "../../system/wavePointer";
 import { PeakStrip } from "../../system/waveStrip";
 import { clamp } from "../../utils/math";
@@ -45,22 +46,58 @@ export function ClipTrimWave({
   onTrim,
   onGesture,
 }: Props) {
-  const release = useEffectEvent(() => onGesture?.(false));
-  useEffect(() => () => release(), []);
   const track = useRef<HTMLDivElement>(null);
-  const dragging = useRef<TrimEdge | null>(null);
+  const dragging = useRef<{
+    edge: TrimEdge;
+    from: number;
+    moved: boolean;
+  } | null>(null);
+  const watch = useRef<AbortController | null>(null);
+  const unwatch = () => {
+    watch.current?.abort();
+    watch.current = null;
+  };
+  const latest = useRef({ onTrim, onGesture });
+  useEffect(() => {
+    latest.current = { onTrim, onGesture };
+  });
+  const restore = () => {
+    const drag = dragging.current;
+    if (!drag) return;
+    dragging.current = null;
+    unwatch();
+    if (drag.moved) latest.current.onTrim(drag.edge, drag.from);
+    latest.current.onGesture?.(false);
+  };
+  const release = useEffectEvent(() => onGesture?.(false));
+  useEffect(
+    () => () => {
+      unwatch();
+      release();
+    },
+    [],
+  );
   const span = Math.max(window.end - window.start, 0.001);
   const ratio = (time: number) => clamp((time - window.start) / span, 0, 1);
   const percent = (value: number) => `${Number((value * 100).toFixed(3))}%`;
   const inside = (time: number) => clamp(time, window.start, window.end);
 
   const onDown = (edge: TrimEdge) => (event: PointerEvent<HTMLElement>) => {
-    dragging.current = edge;
+    dragging.current = {
+      edge,
+      from: edge === "start" ? start : end,
+      moved: false,
+    };
     capturePointer(event);
+    unwatch();
+    watch.current = new AbortController();
+    listenForDragInterrupt(() => restore(), watch.current.signal);
   };
   const onMove = (event: PointerEvent<HTMLElement>) => {
-    const edge = dragging.current;
-    if (!edge || event.buttons === 0) return;
+    const drag = dragging.current;
+    if (!drag || event.buttons === 0) return;
+    const { edge } = drag;
+    drag.moved = true;
     const raw =
       window.start + pointerRatio(track.current, event.clientX) * span;
     onGesture?.(true);
@@ -68,6 +105,7 @@ export function ClipTrimWave({
   };
   const onUp = () => {
     dragging.current = null;
+    unwatch();
     onGesture?.(false);
   };
   const onKey = (edge: TrimEdge) => (event: KeyboardEvent<HTMLElement>) => {
@@ -102,7 +140,10 @@ export function ClipTrimWave({
         onPointerCancel={onUp}
         onLostPointerCapture={onUp}
         onKeyDown={onKey(edge)}
-        onBlur={() => onGesture?.(false)}
+        onBlur={() => {
+          if (dragging.current) restore();
+          else onGesture?.(false);
+        }}
       >
         <span className="sys-wave-knob dv-trim-knob" />
       </span>

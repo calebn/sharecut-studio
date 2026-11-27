@@ -1,5 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { SuggestionWaveform } from "./SuggestionWaveform";
 
 const peaks = Array.from({ length: 120 }, (_, i) =>
@@ -105,5 +111,62 @@ describe("SuggestionWaveform", () => {
     fireEvent.keyDown(end(), { key: "ArrowRight" });
     expect(onAdjust).not.toHaveBeenCalled();
     expect(onAdjustStart).not.toHaveBeenCalled();
+  });
+});
+
+describe("SuggestionWaveform and a page interrupt", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetViewport();
+  });
+
+  const hold = (before?: () => void) => {
+    const view = setup();
+    before?.();
+    fireEvent.pointerDown(end(), { clientX: 700, pointerId: 1 });
+    fireEvent.pointerMove(end(), { clientX: 610, pointerId: 1 });
+    return view;
+  };
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s puts the range back where the press found it, and a later release adjusts nothing",
+    (_name, interrupt) => {
+      const { onAdjust } = hold();
+      expect(onAdjust).toHaveBeenCalledOnce();
+      expect(onAdjust.mock.lastCall?.[0].end).not.toBe(105);
+      interrupt();
+      expect(onAdjust).toHaveBeenCalledTimes(2);
+      expect(onAdjust.mock.lastCall?.[0]).toEqual({ start: 103, end: 105 });
+      fireEvent.pointerMove(end(), { clientX: 650, pointerId: 1 });
+      fireEvent.pointerUp(end(), { pointerId: 1 });
+      expect(onAdjust).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("adjusts nothing for a press that never moved", () => {
+    const { onAdjust, onAdjustStart } = setup();
+    fireEvent.pointerDown(end(), { clientX: 700, pointerId: 1 });
+    dragInterrupts.blur();
+    expect(onAdjust).not.toHaveBeenCalled();
+    expect(onAdjustStart).not.toHaveBeenCalled();
+  });
+
+  it("keeps the drag through a height-only resize", () => {
+    const { onAdjust } = hold();
+    pageRotations.heightResize();
+    expect(onAdjust).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the dragged range on a normal release and no live listeners", () => {
+    const tracked = trackInterruptSignals();
+    let idle = -1;
+    const { onAdjust } = hold(() => {
+      idle = tracked.live();
+    });
+    expect(tracked.live()).toBeGreaterThan(idle);
+    fireEvent.pointerUp(end(), { pointerId: 1 });
+    expect(tracked.live()).toBe(idle);
+    dragInterrupts.blur();
+    expect(onAdjust).toHaveBeenCalledOnce();
   });
 });

@@ -1,5 +1,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../../test/pageInterrupts";
 import { ClipTrimWave } from "./ClipTrimWave";
 
 const WORDS = [
@@ -256,5 +262,81 @@ describe("ClipTrimWave anatomy", () => {
     expect(onGesture).toHaveBeenLastCalledWith(true);
     cleanup();
     expect(onGesture).toHaveBeenLastCalledWith(false);
+  });
+});
+
+describe("ClipTrimWave and a page interrupt", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetViewport();
+  });
+
+  const hold = (before?: () => void) => {
+    const onGesture = vi.fn();
+    const view = setup({ onGesture });
+    before?.();
+    const out = view.handle("Out");
+    fireEvent.pointerDown(out, { pointerId: 1, buttons: 1, clientX: 400 });
+    fireEvent.pointerMove(out, { pointerId: 1, buttons: 1, clientX: 450 });
+    return { ...view, out, onGesture };
+  };
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s puts the dragged edge back where the press found it, and a later release writes nothing",
+    (_name, interrupt) => {
+      const { onTrim, onGesture, out } = hold();
+      expect(onTrim).toHaveBeenCalledOnce();
+      expect(onTrim.mock.lastCall?.[1]).not.toBe(11.8);
+      interrupt();
+      expect(onTrim).toHaveBeenCalledTimes(2);
+      expect(onTrim.mock.lastCall).toEqual(["end", 11.8]);
+      expect(onGesture.mock.lastCall).toEqual([false]);
+      fireEvent.pointerMove(out, { pointerId: 1, buttons: 1, clientX: 500 });
+      fireEvent.pointerUp(out, { pointerId: 1 });
+      expect(onTrim).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("writes nothing for a press that never moved", () => {
+    const onGesture = vi.fn();
+    const { onTrim, handle } = setup({ onGesture });
+    fireEvent.pointerDown(handle("Out"), { pointerId: 1, buttons: 1 });
+    dragInterrupts.blur();
+    expect(onTrim).not.toHaveBeenCalled();
+    expect(onGesture).toHaveBeenLastCalledWith(false);
+  });
+
+  it("restores on the handle's own blur while dragging, and only ends the gesture otherwise", () => {
+    const { onTrim, onGesture, out, handle } = hold();
+    fireEvent.blur(out);
+    expect(onTrim.mock.lastCall).toEqual(["end", 11.8]);
+    expect(onGesture.mock.lastCall).toEqual([false]);
+    onTrim.mockClear();
+    fireEvent.keyDown(handle("In"), { key: "ArrowRight" });
+    onTrim.mockClear();
+    fireEvent.blur(handle("In"));
+    expect(onTrim).not.toHaveBeenCalled();
+    expect(onGesture.mock.lastCall).toEqual([false]);
+  });
+
+  it("keeps the drag through a height-only resize", () => {
+    const { onTrim, out } = hold();
+    pageRotations.heightResize();
+    expect(onTrim).toHaveBeenCalledOnce();
+    fireEvent.pointerUp(out, { pointerId: 1 });
+    expect(onTrim).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the dragged value on a normal release and no live listeners", () => {
+    const tracked = trackInterruptSignals();
+    let idle = -1;
+    const { onTrim, out } = hold(() => {
+      idle = tracked.live();
+    });
+    expect(tracked.live()).toBeGreaterThan(idle);
+    fireEvent.pointerUp(out, { pointerId: 1 });
+    expect(tracked.live()).toBe(idle);
+    dragInterrupts.blur();
+    expect(onTrim).toHaveBeenCalledOnce();
   });
 });
