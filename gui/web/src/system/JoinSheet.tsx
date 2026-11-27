@@ -241,6 +241,10 @@ export function JoinSheet({
   const { next, ready, primary } = guest ? guestModel : producerModel;
 
   const nextRef = useRef(next);
+  const liveNextRef = useRef(next);
+  useLayoutEffect(() => {
+    liveNextRef.current = next;
+  });
   // Focus the guest already put in the form stays: typing can begin before the
   // sheet's first frame places focus.
   const initialFocusRef = useMemo(
@@ -258,7 +262,7 @@ export function JoinSheet({
           formRef.current,
           nameRef.current,
           primaryRef.current,
-          joinFocus(nextRef.current, pointer),
+          joinFocus(liveNextRef.current, pointer),
         );
       },
     }),
