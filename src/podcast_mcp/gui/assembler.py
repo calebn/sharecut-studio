@@ -114,10 +114,10 @@ def build_track_views(
     effects_by_track: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[TrackView]:
     from podcast_mcp.edits.range_target import range_media_seal
-    from podcast_mcp.edits.transcript_reuse import track_is_transcribed
 
     project = ws.project
     svc = edit if edit is not None else EditService(ws)
+    transcripts = TranscriptService(ws)
     status: Mapping[str, Any] = render_status if render_status is not None else svc.render_status()
     fx_map = effects_by_track if effects_by_track is not None else _effects_by_track(ws)
     track_views: list[TrackView] = []
@@ -142,7 +142,7 @@ def build_track_views(
                 fx_count=len(fx_map.get(track.id, [])),
                 stem_is_fresh=stem.get("stem_is_fresh"),
                 has_source_audio=track.media is not None,
-                transcribed=track_is_transcribed(project, track.id),
+                transcribed=transcripts.is_track_transcribed(track.id),
                 media_path=track.media.path if track.media else None,
                 speaker_split_id=split.id if split else None,
                 room_tone_kind=_room_tone_kind(track),

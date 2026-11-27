@@ -33,7 +33,11 @@ from podcast_mcp.edits.transcript_replace import (
     apply_transcript_replacement,
     plan_transcript_replacement,
 )
-from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcribe_plan
+from podcast_mcp.edits.transcript_reuse import (
+    plan_transcription,
+    run_transcribe_plan,
+    track_is_transcribed,
+)
 from podcast_mcp.edits.transcript_timing import (
     TranscriptTimingChangedError,
     WordTimingTarget,
@@ -207,6 +211,9 @@ class TranscriptService(WorkspaceService):
                 resolve_whisper_model(requested=self._model), defaults=self.ws.effective_config()
             )
         return self._asr
+
+    def is_track_transcribed(self, track_id: str) -> bool:
+        return track_is_transcribed(self.ws.project, track_id)
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
         from podcast_mcp.edits.word_spans import trim_project_word_spans
