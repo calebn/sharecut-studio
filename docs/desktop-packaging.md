@@ -377,6 +377,16 @@ into it; there is no sidecar process.
   `PODCAST_ENGINE_DEBUG_BUILD` and `PODCAST_ENGINE_REQUEST_AUDIT` are both `1`: the Rust host
   clears both in every build and sets them only under `cfg!(debug_assertions)`
   (`ios_engine_environment`), and Python ignores the request without the marker.
+- **Received files.** The iOS app takes `.sharecutseg`, `.sharecutkit` and `.zip` files from `RunEvent::Opened`
+  (`file:` URLs only; nothing in `project.yml` or `Info.plist` offers them yet). `src/open_bundle.rs` holds the
+  logic and compiles off-device. `src/ios/mod.rs` runs the copy on its own thread inside
+  `startAccessingSecurityScopedResource` (`src/ios/scope.rs`) and refuses a symlink, a non-file or more than
+  1 GiB. The copy goes to `<temporary directory>/sharecut-inbox/<uuid>/<sanitised name>`, and the host removes entries over an hour old at launch. The
+  host exports that folder as `PODCAST_IOS_INBOX_DIR` (`ios_engine_environment`). A slot keeps what arrives before the engine page
+  has loaded and replays it when the page finishes loading; the host then pushes `{id, name, size}` onto
+  `window.__sharecutOpenBundleQueue` and fires `sharecut:open-bundle`. The page reads the bytes with
+  `GET /api/import/inbox/{id}` and removes the copy with `DELETE`, both host-only (a relayed request gets 403), `Cache-Control: no-store`, and 404 when the id is not a version-4 uuid, the entry is gone or the variable is unset. The route
+  serves the one regular file in the entry; the staged import re-validates it.
 - **Proof.** `make ios-sim-proof` launches the app and asserts what it can from the Mac, reading
   the audit for the exchange (answered 200 once; made-up codes get 403 and no cookie), the page's
   socket, event stream and media requests; the Home screen and project checks are made in the

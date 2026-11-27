@@ -40,6 +40,7 @@ from podcast_mcp.gui.routes import (
     host,
     host_mcp_activity,
     host_session,
+    import_inbox,
     kit_import,
     kits,
     media,
@@ -383,6 +384,7 @@ def create_app(
     app.include_router(segment_import.router, dependencies=[Depends(host_gate)])
     app.include_router(kits.router, dependencies=[Depends(host_gate)])
     app.include_router(kit_import.router, dependencies=[Depends(host_gate)])
+    app.include_router(import_inbox.router, dependencies=[Depends(host_gate)])
     app.include_router(comments.router)
     app.include_router(media.router, dependencies=[Depends(host_gate)])
 

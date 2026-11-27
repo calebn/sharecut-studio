@@ -299,6 +299,18 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.import_inbox:drop_inbox_file",
+      "method": "DELETE",
+      "path": "/api/import/inbox/{inbox_id}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.import_inbox:inbox_file",
+      "method": "GET",
+      "path": "/api/import/inbox/{inbox_id}"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.kits:list_kits_route",
       "method": "GET",
       "path": "/api/kits"

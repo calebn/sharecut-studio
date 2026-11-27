@@ -56,6 +56,7 @@ _PROTECTED_PREFIXES = (
     "/api/range-audio",
     "/api/clips",
     "/api/tunnel",
+    "/api/import",
 )
 
 # Share guests reach these through a tunnel, with their own origins; their credential is the

@@ -39,6 +39,7 @@ NEW_PREFIXES = (
     "/api/range-audio",
     "/api/clips",
     "/api/tunnel",
+    "/api/import",
 )
 
 FIX = "add the prefix to _PROTECTED_PREFIXES or add an EXEMPT reason"
@@ -118,6 +119,18 @@ KIT_FILE_ROUTES = [
 
 @pytest.mark.parametrize("route", KIT_FILE_ROUTES, ids=lambda r: " ".join(r))
 def test_kit_file_routes_are_host_rows_and_host_bound(route: tuple[str, str]) -> None:
+    assert route in {(r["method"], r["path"]) for r in HOST_ROWS}
+    assert path_requires_host_binding(route[1])
+
+
+INBOX_ROUTES = [
+    ("GET", "/api/import/inbox/{inbox_id}"),
+    ("DELETE", "/api/import/inbox/{inbox_id}"),
+]
+
+
+@pytest.mark.parametrize("route", INBOX_ROUTES, ids=lambda r: " ".join(r))
+def test_import_inbox_routes_are_host_rows_and_host_bound(route: tuple[str, str]) -> None:
     assert route in {(r["method"], r["path"]) for r in HOST_ROWS}
     assert path_requires_host_binding(route[1])
 
