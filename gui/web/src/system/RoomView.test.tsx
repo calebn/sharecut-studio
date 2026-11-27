@@ -9,6 +9,7 @@ import { SRC_ROOT } from "../test/sourceFiles";
 import type { NoteItem } from "./notesRailModel";
 import { RoomView, type RoomViewProps } from "./RoomView";
 import type { RoomPerson } from "./roomViewModel";
+import { UnreadStore } from "./useUnreadNotes";
 
 const JON: RoomPerson = {
   role: "guest",
@@ -1397,5 +1398,270 @@ describe("RoomView phone layout (3834 PR 7)", () => {
       screen.getByRole("group", { name: "Maya Okafor, host" }),
     ).toBeVisible();
     expect(screen.queryByText("(you)")).toBeNull();
+  });
+});
+
+describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
+  const ME: RoomPerson = { ...HOST, you: true };
+  const WAITING = { kind: "waiting" } as const;
+  const PAUSED = { kind: "paused", clockSec: 12 } as const;
+  const SAVED = { kind: "saved" } as const;
+  const guestNote = (id: string, text = `hello ${id}`): NoteItem => ({
+    id,
+    kind: "note",
+    author: { name: "Jon", colorIndex: 3 },
+    text,
+    time: "0:10",
+    visibility: "everyone",
+  });
+  const hostNote = (id: string): NoteItem => ({
+    id,
+    kind: "note",
+    author: { name: "Maya Okafor", colorIndex: 0 },
+    text: `mine ${id}`,
+    time: "0:11",
+    visibility: "everyone",
+    mine: true,
+  });
+  const markerNote = (id: string): NoteItem => ({
+    id,
+    kind: "marker",
+    author: { name: "Jon", colorIndex: 3 },
+    time: "0:12",
+  });
+
+  function hostPhone(over: Partial<RoomViewProps> = {}) {
+    let props: RoomViewProps = {
+      seat: "host",
+      title: "Episode 14",
+      people: [ME, JON],
+      lookingIn: 0,
+      phase: LIVE,
+      viewerWidth: "phone",
+      defaultNotesOpen: true,
+      collapseNotesInTake: true,
+      countUnread: new UnreadStore(),
+      notes: [],
+      selfName: "Maya Okafor",
+      onSendNote: vi.fn(),
+      takes: <p>Saved take list</p>,
+      ...over,
+    };
+    const view = render(<RoomView {...props} />);
+    return {
+      ...view,
+      update(next: Partial<RoomViewProps>) {
+        props = { ...props, ...next };
+        view.rerender(<RoomView {...props} />);
+      },
+    };
+  }
+  const peek = () =>
+    document.querySelector(".sys-room-view-peek") as HTMLElement;
+  const badge = () => document.querySelector(".sys-dock-badge--inline");
+  const sheet = () =>
+    screen.queryByRole("dialog", { name: "Comments and takes" });
+
+  it("starts collapsed to the peek bar during a live take", () => {
+    hostPhone();
+    expect(sheet()).toBeNull();
+    expect(peek()).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("also collapses while the take is paused", () => {
+    hostPhone({ phase: PAUSED });
+    expect(sheet()).toBeNull();
+    expect(peek()).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it.each([
+    ["waiting", WAITING],
+    ["saved", SAVED],
+  ] as const)(
+    "keeps today's open sheet when the room is %s",
+    (_name, phase) => {
+      hostPhone({ phase });
+      expect(sheet()).toBeVisible();
+      expect(peek()).toHaveAttribute("aria-expanded", "true");
+    },
+  );
+
+  it("collapses when a take starts, if the host did not open the sheet themselves", () => {
+    const view = hostPhone({ phase: WAITING });
+    expect(sheet()).toBeVisible();
+    view.update({ phase: LIVE });
+    expect(sheet()).toBeNull();
+    view.update({ phase: SAVED });
+    expect(sheet()).toBeVisible();
+  });
+
+  it("one tap on the peek opens it, and it stays open through Stop, Start, Pause and loading", async () => {
+    const view = hostPhone();
+    await userEvent.click(peek());
+    expect(sheet()).toBeVisible();
+    expect(peek()).toHaveAttribute("aria-expanded", "true");
+    for (const phase of [
+      SAVED,
+      WAITING,
+      LIVE,
+      { kind: "live", take: 2, clockSec: 3 } as const,
+      PAUSED,
+      LIVE,
+    ]) {
+      view.update({ phase });
+      expect(sheet()).toBeVisible();
+      expect(peek()).toHaveAttribute("aria-expanded", "true");
+    }
+    view.update({ loading: true });
+    view.update({ loading: false });
+    expect(sheet()).toBeVisible();
+  });
+
+  it("collapses again when the host closes it, and the next comment counts from zero", async () => {
+    const view = hostPhone();
+    await userEvent.click(peek());
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(sheet()).toBeNull();
+    expect(peek()).toHaveAttribute("aria-expanded", "false");
+    view.update({ notes: [guestNote("1")] });
+    expect(badge()).toHaveTextContent("1");
+  });
+
+  it("shows a count badge and a pulse for a guest's comment, named on the button only", () => {
+    const view = hostPhone({ notes: [guestNote("1")] });
+    expect(badge()).toBeNull();
+    view.update({ notes: [guestNote("1"), guestNote("2")] });
+    expect(badge()).toHaveTextContent("1");
+    expect(badge()).toHaveAttribute("data-pulse");
+    expect(peek()).toHaveAccessibleName(/1 ?unread$/);
+    expect(document.querySelector("[aria-live]")).toBeNull();
+  });
+
+  it("a second comment makes it 2 and restarts the pulse on a new badge element", () => {
+    const view = hostPhone();
+    view.update({ notes: [guestNote("1")] });
+    const first = badge();
+    view.update({ notes: [guestNote("1"), guestNote("2")] });
+    expect(badge()).toHaveTextContent("2");
+    expect(badge()).not.toBe(first);
+    expect(peek()).toHaveAccessibleName(/2 ?unread$/);
+  });
+
+  it("caps the badge at 99+ and says 99 or more", () => {
+    const view = hostPhone();
+    view.update({
+      notes: Array.from({ length: 120 }, (_, i) => guestNote(`n${i}`)),
+    });
+    expect(badge()).toHaveTextContent("99+");
+    expect(peek()).toHaveAccessibleName(/99\+ ?unread$/);
+  });
+
+  it("does not badge the host's own comments or any marker", () => {
+    const view = hostPhone();
+    view.update({
+      notes: [hostNote("1"), markerNote("2")],
+    });
+    expect(badge()).toBeNull();
+    expect(peek().querySelector("[data-pulse]")).toBeNull();
+    expect(peek()).toHaveAccessibleName(/^Comments/);
+    expect(peek()).not.toHaveAccessibleName(/unread/);
+  });
+
+  it("counts a guest who shares the host's display name", () => {
+    const view = hostPhone({ selfName: "Jon" });
+    view.update({ notes: [{ ...guestNote("1"), mine: false }] });
+    expect(badge()).toHaveTextContent("1");
+  });
+
+  it("opening the sheet clears the badge", async () => {
+    const view = hostPhone();
+    view.update({ notes: [guestNote("1")] });
+    expect(badge()).toHaveTextContent("1");
+    await userEvent.click(peek());
+    expect(badge()).toBeNull();
+    expect(screen.getByText("hello 1")).toBeVisible();
+  });
+
+  it("a comment arriving while the Comments tab is open is seen: no badge, no pulse, even after closing", async () => {
+    const view = hostPhone();
+    await userEvent.click(peek());
+    view.update({ notes: [guestNote("1")] });
+    expect(screen.getByText("hello 1")).toBeVisible();
+    expect(badge()).toBeNull();
+    expect(peek().querySelector("[data-pulse]")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(badge()).toBeNull();
+  });
+
+  it("on the Takes tab a comment is not seen: no badge or pulse while open, a quiet badge after closing, cleared by reading Comments", async () => {
+    const view = hostPhone();
+    await userEvent.click(peek());
+    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    view.update({ notes: [guestNote("1")] });
+    expect(badge()).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(badge()).toHaveTextContent("1");
+    expect(badge()).not.toHaveAttribute("data-pulse");
+    await userEvent.click(peek());
+    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Comments" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(badge()).toBeNull();
+  });
+
+  it("a reconnect remount with a kept store does not count the comments already in the room", () => {
+    const store = new UnreadStore();
+    const notes = [1, 2, 3, 4, 5].map((n) => guestNote(`${n}`));
+    const first = hostPhone({ notes, countUnread: store });
+    expect(badge()).toBeNull();
+    first.unmount();
+    const second = hostPhone({ notes, countUnread: store });
+    expect(badge()).toBeNull();
+    second.update({ notes: [...notes, guestNote("6")] });
+    expect(badge()).toHaveTextContent("1");
+  });
+
+  it("seeds after loading: no badge for the five comments that arrive with the room", () => {
+    const view = hostPhone({ loading: true, notes: [] });
+    view.update({
+      loading: false,
+      notes: [1, 2, 3, 4, 5].map((n) => guestNote(`${n}`)),
+    });
+    expect(badge()).toBeNull();
+  });
+
+  it("is off without the store: a guest's phone never shows a badge", () => {
+    const view = renderRoom({ viewerWidth: "phone", notes: [] });
+    const props = {
+      seat: "guest" as const,
+      title: "Episode 14",
+      people: [HOST, JON],
+      lookingIn: 0,
+      phase: LIVE,
+      viewerWidth: "phone" as const,
+      selfName: "Jon",
+      onSendNote: vi.fn(),
+    };
+    view.rerender(<RoomView {...props} notes={[guestNote("1")]} />);
+    expect(badge()).toBeNull();
+    expect(peek()).toHaveAccessibleName(/^Comments/);
+    expect(peek()).not.toHaveAccessibleName(/unread/);
+  });
+
+  it("a desktop host keeps the open rail: no peek bar, no badge", () => {
+    const view = hostPhone({ viewerWidth: "desktop" });
+    expect(document.querySelector(".sys-room-view-peek")).toBeNull();
+    expect(
+      screen.getByRole("complementary", { name: "Comments and takes" }),
+    ).toBeVisible();
+    view.update({ notes: [guestNote("1")] });
+    expect(badge()).toBeNull();
+  });
+
+  it("has no axe violations with the badge showing", async () => {
+    const view = hostPhone();
+    view.update({ notes: [guestNote("1"), guestNote("2")] });
+    expect(badge()).toHaveTextContent("2");
+    await expectNoA11yViolations(document.body);
   });
 });

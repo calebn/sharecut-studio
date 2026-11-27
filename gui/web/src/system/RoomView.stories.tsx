@@ -10,6 +10,7 @@ import type { NoteItem } from "./notesRailModel";
 import { RoomView } from "./RoomView";
 import type { RoomPerson } from "./roomViewModel";
 import { SessionTargetChip } from "./SessionTargetChip";
+import { UnreadStore } from "./useUnreadNotes";
 
 // Fixtures for every story below. Stubbed state only: nothing here is wired.
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
@@ -902,6 +903,39 @@ export const HostPhoneLive: Story = {
       "Pause take",
       "More",
     ]);
+  },
+};
+
+function seenUpTo(ids: string[]): UnreadStore {
+  const store = new UnreadStore();
+  store.seed(NOTES.filter((item) => ids.includes(item.id)));
+  return store;
+}
+
+export const HostPhoneLiveUnread: Story = {
+  args: {
+    ...phone,
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU],
+    selfName: "Maya Okafor",
+    defaultNotesOpen: true,
+    collapseNotesInTake: true,
+    // Two comments by others arrived after the host last had the room on screen.
+    countUnread: seenUpTo(["m1", "n1"]),
+  },
+  parameters: isolatedStoryParameters,
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const peek = canvasElement.querySelector<HTMLElement>(
+      ".sys-room-view-peek",
+    );
+    await expect(peek).not.toBeNull();
+    await expect(peek).toHaveAttribute("aria-expanded", "false");
+    await expect(peek).toHaveAccessibleName(/2 ?unread$/);
+    await expect(
+      peek?.querySelector(".sys-dock-badge--inline"),
+    ).toHaveTextContent("2");
+    await expect(within(document.body).queryByRole("dialog")).toBeNull();
   },
 };
 

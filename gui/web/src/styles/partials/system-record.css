@@ -237,6 +237,30 @@
   text-align: center;
 }
 
+/* The count in the host phone's peek bar: in the row, not on a corner. */
+.sys-dock-badge--inline {
+  position: static;
+  flex: none;
+  border-radius: var(--radius-xl);
+}
+
+@keyframes room-peek-badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-room-view-peek .sys-dock-badge[data-pulse] {
+    animation: room-peek-badge-pulse var(--motion-loop-pipeline) ease-in-out 1;
+  }
+}
+
 .sys-dock-status {
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);

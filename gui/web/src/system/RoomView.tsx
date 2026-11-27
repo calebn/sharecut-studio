@@ -38,6 +38,12 @@ import { Sheet } from "./Sheet";
 import { SkeletonBlock } from "./Skeleton";
 import { SystemIcon } from "./SystemIcon";
 import { useRoomSheetFloor } from "./useRoomSheetFloor";
+import {
+  UNREAD_WORD,
+  UnreadStore,
+  unreadBadgeText,
+  useUnreadNotes,
+} from "./useUnreadNotes";
 
 const LOADING_TILE_KEYS = ["a", "b", "c", "d"] as const;
 
@@ -59,6 +65,17 @@ export type RoomViewProps = {
   alerts?: RoomAlertInput[];
   /** Whether the Comments rail starts open. The Comments button flips it after that. */
   defaultNotesOpen?: boolean;
+  /**
+   * The host phone: while a take is live (recording or paused) the Comments
+   * sheet starts collapsed to its peek bar unless the host opened it
+   * themselves. Outside a take `defaultNotesOpen` applies.
+   */
+  collapseNotesInTake?: boolean;
+  /**
+   * Counts comments by others for the peek bar's badge. The caller owns the
+   * store so a remount keeps what the host has seen; absent means no count.
+   */
+  countUnread?: UnreadStore;
   notes: NoteItem[];
   /** The viewer's own name, so a guest keeps their own comments. */
   selfName: string;
@@ -170,6 +187,8 @@ export function RoomView({
   viewerWidth = "desktop",
   alerts,
   defaultNotesOpen,
+  collapseNotesInTake = false,
+  countUnread,
   notes,
   selfName,
   onSendNote,
@@ -208,9 +227,13 @@ export function RoomView({
   }, [focusTitle]);
   const tabId = useId();
   const [railTab, setRailTab] = useState<RailTab>("comments");
-  const [notesChoice, setNotesChoice] = useState<boolean | undefined>(
-    defaultNotesOpen,
-  );
+  // The host's own choice, once made; until then the default decides.
+  const [notesChoice, setNotesChoice] = useState<boolean | undefined>();
+  const collapsed =
+    collapseNotesInTake &&
+    viewerWidth === "phone" &&
+    (phase.kind === "live" || phase.kind === "paused");
+  const notesOpen = notesChoice ?? (collapsed ? false : defaultNotesOpen);
   const [draft, setDraft] = useState("");
   const [everyone, setEveryone] = useState(false);
   const [detent, setDetent] = useState<DrawerDetent>("half");
@@ -221,7 +244,7 @@ export function RoomView({
     people,
     phase,
     viewerWidth,
-    notesOpen: notesChoice,
+    notesOpen,
     alerts,
     invite: onInvite !== undefined,
     canRecord: onStartTake !== undefined && onStopTake !== undefined,
@@ -251,6 +274,17 @@ export function RoomView({
   const rootRef = useRef<HTMLDivElement>(null);
   const commentsSheetOpen = model.sheetOpen && !declined && !loading;
   useRoomSheetFloor(rootRef, commentsSheetOpen);
+  const [spareStore] = useState(() => new UnreadStore());
+  const unread = useUnreadNotes({
+    notes,
+    selfName,
+    enabled: countUnread !== undefined,
+    loading,
+    sheetOpen: model.sheetOpen,
+    commentsShowing:
+      commentsSheetOpen && (takes === undefined || railTab === "comments"),
+    store: countUnread ?? spareStore,
+  });
 
   const closeSheet = useCallback(() => setNotesChoice(false), []);
   const showEveryone = noteVisibility ?? seat === "host";
@@ -452,6 +486,16 @@ export function RoomView({
           {model.peek?.time ? (
             <span className="sys-mono sys-room-view-peek-time">
               {model.peek.time}
+            </span>
+          ) : null}
+          {unread.count > 0 ? (
+            <span
+              key={unread.pulseKey}
+              className="sys-dock-badge sys-dock-badge--inline"
+              data-pulse={unread.pulseKey > 0 ? "" : undefined}
+            >
+              {unreadBadgeText(unread.count)}
+              <span className="sr-only">{UNREAD_WORD}</span>
             </span>
           ) : null}
         </button>
