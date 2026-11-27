@@ -189,6 +189,34 @@ describe("useDuckingPreview", () => {
     });
   });
 
+  it("also runs a new dry run when the apply is refused for a reason other than a stale token", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    vi.mocked(applyDuckingCommand).mockReset();
+    vi.mocked(previewDucking).mockResolvedValueOnce(plan(true, 0, "old"));
+    const { result } = renderHook(() => useDuckingPreview(true));
+    await settle();
+    expect(previewDucking).toHaveBeenCalledTimes(1);
+
+    vi.mocked(applyDuckingCommand).mockRejectedValue(
+      new ApiError("Too many dips.", "ducking_too_many_points", 422),
+    );
+    vi.mocked(previewDucking).mockResolvedValueOnce(plan(true, 0, "fresh"));
+    await act(async () => {
+      await execute(
+        "track.duckUnderSpeech",
+        { planToken: "old" },
+        { skipWhen: true },
+      );
+    });
+    await settle();
+    expect(previewDucking).toHaveBeenCalledTimes(2);
+    expect(result.current).toEqual({
+      kind: "ready",
+      plan: plan(true, 0, "fresh"),
+    });
+  });
+
   it("sends nothing while disabled", async () => {
     renderHook(() => useDuckingPreview(false));
     await settle(DUCKING_PREVIEW_DEBOUNCE_MS * 3);

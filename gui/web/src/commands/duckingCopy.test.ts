@@ -39,6 +39,10 @@ describe("duckingKind", () => {
   it("is ready when a track would change and no earlier dips are replaced", () => {
     expect(duckingKind(plan(-18, row(true), row(false)))).toBe("ready");
   });
+  it("is stale at exactly one replaced dip and ready at none", () => {
+    expect(duckingKind(plan(-18, row(true, 1)))).toBe("stale");
+    expect(duckingKind(plan(-18, row(true, 0)))).toBe("ready");
+  });
   it("is stale when a changed track has earlier dips to replace", () => {
     expect(duckingKind(plan(-18, row(true, 2), row(false)))).toBe("stale");
   });
