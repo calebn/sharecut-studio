@@ -20,6 +20,8 @@ function modifierPrefix(cmd: KeymapCommand): string {
 }
 
 function shiftsOverlap(a: KeymapCommand, b: KeymapCommand): boolean {
+  // A row that matches its Shift glyph (">" for Shift+.) never shares the bare key's character.
+  if (a.shiftedGlyph || b.shiftedGlyph) return false;
   return (
     a.requireShift === undefined ||
     b.requireShift === undefined ||
