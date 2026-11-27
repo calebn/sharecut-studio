@@ -1131,6 +1131,10 @@
   cursor: pointer;
 }
 
+.sys-room-view-peek > svg {
+  flex: none;
+}
+
 .sys-room-view-peek-label {
   flex: none;
   color: var(--color-text-primary);
