@@ -17,10 +17,10 @@ import { STATUS_ROW_GLYPH } from "../../system/statusText";
 import { useFocusRescue } from "../../system/useFocusRescue";
 import { Button, SegmentedControl, ToggleButton } from "../../ui";
 import { useResizeObserver } from "../../ui/useResizeObserver";
+import { isStartRow } from "./isStartRow";
 import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 import {
-  isStartRow,
   type ReadyActionArgs,
   ReadyList,
   type ReadyRowData,

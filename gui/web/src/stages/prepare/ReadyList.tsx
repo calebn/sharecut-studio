@@ -10,6 +10,7 @@ import { StatusRow, type StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
 import type { ReadyRowId } from "../../utils/prepareRows";
+import { isStartRow } from "./isStartRow";
 
 export type { ReadyRowId };
 
@@ -61,11 +62,6 @@ export type ReadyRowData = {
   model?: NeedTarget;
   modelGetAction?: "get-word-timing";
 };
-
-/** The queued row whose button starts the run: the one step to take before anything runs. */
-export function isStartRow(row: ReadyRowData): boolean {
-  return row.state === "queued" && row.action?.run === "try-again";
-}
 
 type ReadyListProps = {
   rows: readonly ReadyRowData[];
