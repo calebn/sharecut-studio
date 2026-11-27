@@ -24,7 +24,6 @@ const setViewport = (key: "innerWidth" | "innerHeight", value: number) =>
     value,
   });
 
-/** Rotation events for a jsdom window. Call `resetViewport` in an `afterEach`. */
 export const pageRotations = {
   widthResize: () => {
     setViewport("innerWidth", window.innerWidth + 400);
