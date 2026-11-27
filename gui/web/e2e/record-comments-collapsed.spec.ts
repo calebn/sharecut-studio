@@ -1,4 +1,4 @@
-import { type Browser, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
@@ -79,8 +79,6 @@ async function closeSheet(page: Page) {
 test.describe("host phone, collapsed during a take", () => {
   test("390x844: collapsed at take start, counted and pulsed, one tap opens it and it stays open", async ({
     browser,
-  }: {
-    browser: Browser;
   }) => {
     test.slow();
     await inRoom(
@@ -164,8 +162,6 @@ test.describe("host phone, collapsed during a take", () => {
 
   test("on the Takes tab a comment is not read: no badge or pulse until the sheet closes, then a quiet badge", async ({
     browser,
-  }: {
-    browser: Browser;
   }) => {
     test.slow();
     await inRoom(
@@ -196,8 +192,6 @@ test.describe("host phone, collapsed during a take", () => {
 
   test("reduced motion has no pulse and still counts; no preference pulses", async ({
     browser,
-  }: {
-    browser: Browser;
   }) => {
     test.slow();
     await inRoom(
@@ -222,8 +216,6 @@ test.describe("host phone, collapsed during a take", () => {
 
   test("a reload mid-take comes back collapsed and does not count the comments already there", async ({
     browser,
-  }: {
-    browser: Browser;
   }) => {
     test.slow();
     await inRoom(
@@ -250,10 +242,8 @@ test.describe("host phone, collapsed during a take", () => {
     [667, 375],
     [320, 568],
   ] as const) {
-    test(`${width}x${height}: a comment arriving moves neither the peek, the dock nor the tile grid`, async ({
+    test(`${width}x${height}${width > height ? " landscape, bottom dock on a host phone" : ""}: a comment arriving moves neither the peek, the dock nor the tile grid`, async ({
       browser,
-    }: {
-      browser: Browser;
     }) => {
       test.slow();
       await inRoom(
@@ -312,8 +302,6 @@ test.describe("host phone, collapsed during a take", () => {
   for (const theme of ["light", "dark"] as const) {
     test(`390x844 ${theme}: axe clean with the badge showing`, async ({
       browser,
-    }: {
-      browser: Browser;
     }) => {
       test.slow();
       await inRoom(
@@ -332,11 +320,9 @@ test.describe("host phone, collapsed during a take", () => {
   }
 });
 
-test.describe("other seats", () => {
+test.describe("guard: other seats", () => {
   test("a guest phone shows no badge for a comment, and a laptop host keeps the open rail", async ({
     browser,
-  }: {
-    browser: Browser;
   }) => {
     test.slow();
     await inRoom(

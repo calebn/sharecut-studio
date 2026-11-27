@@ -117,7 +117,7 @@ const HOST_VIEWPORTS = [
 
 test.describe("host phone", () => {
   for (const [width, height] of HOST_VIEWPORTS) {
-    test(`${width}x${height}: the sheet rests on the dock at every detent and the dock stays tappable`, async ({
+    test(`${width}x${height}${width === 320 ? " (guard: new width)" : ""}: the sheet rests on the dock at every detent and the dock stays tappable`, async ({
       browser,
     }: {
       browser: Browser;
