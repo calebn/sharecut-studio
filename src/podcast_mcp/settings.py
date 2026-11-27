@@ -238,6 +238,10 @@ VARIABLES: tuple[Variable, ...] = (
             "PODCAST_ENGINE_REQUEST_AUDIT",
             "Set to 1 by a debug build of the iOS app: log each request's method, path without query, status and whether the query was empty.",
         ),
+        (
+            "PODCAST_IOS_INBOX_DIR",
+            "Set by the iOS app: the folder holding files opened with Open in ShareCut until the page imports them.",
+        ),
         ("PODCAST_GUI_OPENAPI", "Serve OpenAPI/Swagger; 0, false or no turns it off.", "1"),
         ("PODCAST_REVIEW_CORS_ORIGINS", "Extra exact CORS origins, comma-separated."),
         (
