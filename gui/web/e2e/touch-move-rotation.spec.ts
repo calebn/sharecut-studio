@@ -17,6 +17,21 @@ import { projectJson, watchCommands } from "./touchTimeline";
 
 test.use({ hasTouch: true });
 
+const SIZES = [
+  {
+    name: "a width that swaps the phone shell",
+    portrait: { width: 390, height: 844 },
+    landscape: { width: 844, height: 390 },
+    swapsShell: true,
+  },
+  {
+    name: "a width that keeps the phone shell",
+    portrait: { width: 375, height: 667 },
+    landscape: { width: 667, height: 375 },
+    swapsShell: false,
+  },
+] as const;
+
 const starts = async (
   page: Parameters<typeof projectJson>[0],
   projectPath: string,
@@ -58,54 +73,58 @@ test("a long-press move on the phone saves one MoveClips and the clip moves", as
   });
 });
 
-test("rotating the phone mid long-press move saves nothing, and a later move saves once", async ({
-  page,
-  context,
-  browserName,
-}) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await withShareableProject(async (projectPath) => {
-    await openHostShare(page, projectPath);
-    await openPhoneTimeline(page);
-    const commands = watchCommands(page);
-    const moves = () => commands.filter((c) => c.type === "MoveClips");
-    const hit = page.locator(".clip-hit").first();
-    await expect(hit).toBeVisible();
-    const box = await settledBox(hit);
-    const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    const finger = await newFinger(context, page, browserName);
+for (const size of SIZES) {
+  test(`rotating the phone mid long-press move (${size.name}) saves nothing, and a later move saves once`, async ({
+    page,
+    context,
+    browserName,
+  }) => {
+    await page.setViewportSize(size.portrait);
+    await withShareableProject(async (projectPath) => {
+      await openHostShare(page, projectPath);
+      await openPhoneTimeline(page);
+      const commands = watchCommands(page);
+      const moves = () => commands.filter((c) => c.type === "MoveClips");
+      const hit = page.locator(".clip-hit").first();
+      await expect(hit).toBeVisible();
+      const box = await settledBox(hit);
+      const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const finger = await newFinger(context, page, browserName);
 
-    await finger.down(at);
-    await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
-    await finger.slide({ x: at.x + 40, y: at.y }, 4, 16);
-    await page.setViewportSize({ width: 844, height: 390 });
-    await expect(
-      page.locator('[data-arrangement]:not([data-arrangement="phone"])'),
-    ).toBeVisible();
-    await expect(page.locator("[data-hit-armed]")).toHaveCount(0);
-    await finger.slide({ x: at.x + 80, y: at.y }, 4, 16);
-    await finger.up();
-    const afterRotation = await starts(page, projectPath);
+      await finger.down(at);
+      await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
+      await finger.slide({ x: at.x + 40, y: at.y }, 4, 16);
+      await page.setViewportSize(size.landscape);
+      if (size.swapsShell) {
+        await expect(
+          page.locator('[data-arrangement]:not([data-arrangement="phone"])'),
+        ).toBeVisible();
+      }
+      await expect(page.locator("[data-hit-armed]")).toHaveCount(0);
+      await finger.slide({ x: at.x + 80, y: at.y }, 4, 16);
+      await finger.up();
+      const afterRotation = await starts(page, projectPath);
 
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.locator('[data-arrangement="phone"]')).toBeVisible();
-    await expect(hit).toBeVisible();
-    const again = await settledBox(hit);
-    const from = {
-      x: again.x + again.width / 2,
-      y: again.y + again.height / 2,
-    };
-    const sentBeforeSecond = moves().length;
-    await finger.down(from);
-    await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
-    await finger.slide({ x: from.x + 40, y: from.y }, 4, 16);
-    await finger.up();
+      await page.setViewportSize(size.portrait);
+      await expect(page.locator('[data-arrangement="phone"]')).toBeVisible();
+      await expect(hit).toBeVisible();
+      const again = await settledBox(hit);
+      const from = {
+        x: again.x + again.width / 2,
+        y: again.y + again.height / 2,
+      };
+      const sentBeforeSecond = moves().length;
+      await finger.down(from);
+      await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
+      await finger.slide({ x: from.x + 40, y: from.y }, 4, 16);
+      await finger.up();
 
-    expect(sentBeforeSecond).toBe(0);
-    await expect.poll(() => moves().length).toBeGreaterThanOrEqual(1);
-    await expect
-      .poll(async () => await starts(page, projectPath))
-      .not.toEqual(afterRotation);
-    expect(moves()).toHaveLength(1);
+      expect(sentBeforeSecond).toBe(0);
+      await expect.poll(() => moves().length).toBeGreaterThanOrEqual(1);
+      await expect
+        .poll(async () => await starts(page, projectPath))
+        .not.toEqual(afterRotation);
+      expect(moves()).toHaveLength(1);
+    });
   });
-});
+}
