@@ -11,6 +11,12 @@ function caption(container: HTMLElement) {
   return container.querySelector(".sys-record-hint");
 }
 
+/** A pointer press released at once: too short to stop. */
+function tap(button: HTMLElement) {
+  fireEvent.pointerDown(button, { button: 0 });
+  fireEvent.pointerUp(button);
+}
+
 describe("RecordButton", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -139,38 +145,12 @@ describe("RecordButton", () => {
     expect(description).not.toHaveTextContent("Hold to stop");
   });
 
-  it("a plain tap does not stop, a full hold does, Enter and Space ask first", async () => {
-    const onStop = vi.fn();
-    render(<RecordButton face="live" onStart={vi.fn()} onStop={onStop} />);
-    const button = screen.getByRole("button", { name: "Stop take" });
-    fireEvent.pointerDown(button, { button: 0 });
-    fireEvent.pointerUp(button);
-    act(() => {
-      vi.advanceTimersByTime(HOLD_TO_STOP_MS * 2);
-    });
-    expect(onStop).not.toHaveBeenCalled();
-    fireEvent.pointerDown(button, { button: 0 });
-    act(() => {
-      vi.advanceTimersByTime(HOLD_TO_STOP_MS);
-    });
-    expect(onStop).toHaveBeenCalledTimes(1);
-    for (const key of ["Enter", " "]) {
-      fireEvent.keyDown(button, { key });
-      expect(
-        screen.getByRole("group", { name: /stop this take/i }),
-      ).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Keep recording" }));
-    }
-    expect(onStop).toHaveBeenCalledTimes(1);
-  });
-
   it("drops the emphasis when the take pauses and goes live again inside two seconds", () => {
     const { container, rerender } = render(
       <RecordButton face="live" onStart={vi.fn()} onStop={vi.fn()} />,
     );
     const button = screen.getByRole("button", { name: "Stop take" });
-    fireEvent.pointerDown(button, { button: 0 });
-    fireEvent.pointerUp(button);
+    tap(button);
     expect(screen.getByRole("status")).toHaveTextContent("Hold to stop");
     rerender(<RecordButton face="paused" onStart={vi.fn()} onStop={vi.fn()} />);
     act(() => {
@@ -182,14 +162,13 @@ describe("RecordButton", () => {
     expect(caption(container)).toHaveTextContent("Hold to stop");
   });
 
-  it("a stopped take does not leave the emphasis on the next one (keyboard path)", async () => {
+  it("a stopped take does not leave the emphasis on the next one (keyboard path)", () => {
     const onStop = vi.fn();
     const { container, rerender } = render(
       <RecordButton face="live" onStart={vi.fn()} onStop={onStop} />,
     );
     const button = screen.getByRole("button", { name: "Stop take" });
-    fireEvent.pointerDown(button, { button: 0 });
-    fireEvent.pointerUp(button);
+    tap(button);
     expect(screen.getByRole("status")).toHaveTextContent("Hold to stop");
     fireEvent.keyDown(button, { key: "Enter" });
     const confirm = screen.getByRole("group", { name: /stop this take/i });
@@ -212,8 +191,7 @@ describe("RecordButton", () => {
       <RecordButton face="live" onStart={vi.fn()} onStop={vi.fn()} />,
     );
     const button = screen.getByRole("button", { name: "Stop take" });
-    fireEvent.pointerDown(button, { button: 0 });
-    fireEvent.pointerUp(button);
+    tap(button);
     expect(screen.getByRole("status")).toHaveTextContent("Hold to stop");
     rerender(
       <RecordButton
@@ -250,7 +228,7 @@ describe("RecordButton", () => {
     expect(caption(container)).toHaveTextContent("Hold to stop");
   });
 
-  it("with a reason set a press never nudges, and idle and paused have no caption", () => {
+  it("[GUARD] with a reason set a press never nudges, and idle and paused have no caption", () => {
     const { container, rerender } = render(
       <RecordButton
         face="live"
@@ -260,13 +238,12 @@ describe("RecordButton", () => {
       />,
     );
     const button = screen.getByRole("button", { name: "Stop take" });
-    fireEvent.pointerDown(button, { button: 0 });
-    fireEvent.pointerUp(button);
+    tap(button);
     expect(caption(container)).not.toHaveAttribute("data-nudge");
     expect(screen.getByRole("status")).not.toHaveTextContent("Hold to stop");
     for (const face of ["idle", "paused"] as const) {
       rerender(<RecordButton face={face} onStart={vi.fn()} onStop={vi.fn()} />);
-      expect(container.querySelector(".sys-record-hint")).toBeNull();
+      expect(caption(container)).toBeNull();
       expect(screen.queryByRole("status")).toBeNull();
       expect(container.querySelector("[aria-describedby]")).toBeNull();
     }

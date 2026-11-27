@@ -42,7 +42,7 @@ const RING_RADIUS = 30;
  * The one control that records. A record-red circle starts or resumes; while live
  * it is a square in a ring, and holding it stops the take as the ring fills.
  * Keyboard and assistive tech cannot hold, so Enter or Space asks first. A small
- * caption under the live button says to hold; a tap on it emphasises the caption.
+ * caption under the live button says to hold; a tap on the button emphasises the caption.
  */
 export function RecordButton({
   face,
@@ -69,7 +69,7 @@ export function RecordButton({
   const nudge = hint.shown && caption;
   const hideHint = hint.hide;
 
-  // The nudge never outlives its moment: a new face or reason starts clean.
+  // usePressHint's timer outlives a face change; clear it so a re-entered live face does not start emphasised.
   useEffect(() => {
     hideHint();
   }, [face, reason, hideHint]);
