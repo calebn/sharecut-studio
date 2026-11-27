@@ -2,12 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
 import { describe, expect, it } from "vitest";
 import type { NoteItem } from "./notesRailModel";
-import {
-  UnreadStore,
-  unreadBadgeText,
-  unseenOthers,
-  useUnreadNotes,
-} from "./useUnreadNotes";
+import { UnreadStore, useUnreadNotes } from "./useUnreadNotes";
 
 const note = (id: string, over: Partial<NoteItem> = {}): NoteItem => ({
   id,
@@ -30,7 +25,6 @@ type Args = Parameters<typeof useUnreadNotes>[0];
 const base = (over: Partial<Args> = {}): Args => ({
   notes: [],
   selfName: "Maya",
-  enabled: true,
   loading: false,
   sheetOpen: false,
   commentsShowing: false,
@@ -60,65 +54,6 @@ function harness(first: Partial<Args> = {}, options?: { strict?: boolean }) {
     unmount: hook.unmount,
   };
 }
-
-const storeSeen = (ids: string[]) => {
-  const store = new UnreadStore();
-  store.markSeen(ids.map((id) => note(id)));
-  return store;
-};
-
-describe("unseenOthers", () => {
-  const seen = new UnreadStore();
-  it("counts notes by others only", () => {
-    const notes = [note("1"), note("2", { mine: true }), marker("3")];
-    expect(unseenOthers(notes, seen, "Maya")).toBe(1);
-  });
-
-  it("uses mine when set and the name only when it is not", () => {
-    expect(
-      unseenOthers([note("1", { author: { name: "Maya" } })], seen, "Maya"),
-    ).toBe(0);
-    expect(
-      unseenOthers(
-        [note("1", { mine: false, author: { name: "Maya" } })],
-        seen,
-        "Maya",
-      ),
-    ).toBe(1);
-    expect(
-      unseenOthers([note("1", { mine: true })], seen, "Someone else"),
-    ).toBe(0);
-  });
-
-  it("never counts a marker, anyone's", () => {
-    expect(unseenOthers([marker("1"), marker("2", "Maya")], seen, "Maya")).toBe(
-      0,
-    );
-  });
-
-  it("works with a selfName of Host and with an empty one", () => {
-    const named = [note("1", { author: { name: "Host" } })];
-    expect(unseenOthers(named, seen, "Host")).toBe(0);
-    expect(unseenOthers(named, seen, "")).toBe(1);
-    expect(unseenOthers([note("1", { author: { name: "" } })], seen, "")).toBe(
-      0,
-    );
-  });
-
-  it("skips ids already seen", () => {
-    expect(unseenOthers([note("1"), note("2")], storeSeen(["1"]), "Maya")).toBe(
-      1,
-    );
-  });
-});
-
-describe("unread text", () => {
-  it("caps the badge at 99+", () => {
-    expect(unreadBadgeText(1)).toBe("1");
-    expect(unreadBadgeText(99)).toBe("99");
-    expect(unreadBadgeText(100)).toBe("99+");
-  });
-});
 
 describe("useUnreadNotes", () => {
   it("does not count what was there when the room first showed", () => {
@@ -157,6 +92,16 @@ describe("useUnreadNotes", () => {
     expect(view.pulseKey).toBe(0);
   });
 
+  it("takes a namesake of the host for the host only when mine is unknown", () => {
+    const named = (mine?: boolean) =>
+      note("1", { author: { name: "Host" }, mine });
+    const view = harness({ selfName: "Host" });
+    view.update({ notes: [named()] });
+    expect(view.count).toBe(0);
+    view.update({ notes: [named(), { ...named(false), id: "2" }] });
+    expect(view.count).toBe(1);
+  });
+
   it("ignores markers, anyone's", () => {
     const view = harness({});
     view.update({ notes: [marker("1"), marker("2", "Maya")] });
@@ -165,7 +110,7 @@ describe("useUnreadNotes", () => {
   });
 
   it("counts nothing while disabled", () => {
-    const view = harness({ enabled: false });
+    const view = harness({ store: undefined });
     view.update({ notes: [note("1")] });
     expect(view.count).toBe(0);
     expect(view.pulseKey).toBe(0);
@@ -233,6 +178,16 @@ describe("useUnreadNotes", () => {
     expect(second.pulseKey).toBe(0);
     second.update({ notes: [...notes, note("6")] });
     expect(second.count).toBe(1);
+  });
+
+  it("does not pulse on mount when a kept store already has unseen comments", () => {
+    const store = fresh();
+    store.seed([note("1")]);
+    const view = harness({ store, notes: [note("1"), note("2")] });
+    expect(view.count).toBe(1);
+    expect(view.pulseKey).toBe(0);
+    view.update({ notes: [note("1"), note("2"), note("3")] });
+    expect(view.pulseKey).toBe(1);
   });
 
   it("bumps the pulse once under StrictMode", () => {

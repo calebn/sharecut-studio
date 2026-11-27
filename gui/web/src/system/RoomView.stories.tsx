@@ -920,8 +920,7 @@ export const HostPhoneLiveUnread: Story = {
     selfName: "Maya Okafor",
     defaultNotesOpen: true,
     collapseNotesInTake: true,
-    // Two comments by others arrived after the host last had the room on screen.
-    countUnread: seenUpTo(["m1", "n1"]),
+    unreadStore: seenUpTo(["m1", "n1"]),
   },
   parameters: isolatedStoryParameters,
   play: async ({ canvasElement, viewMode }) => {

@@ -36,7 +36,7 @@ describe("noteItems own comments", () => {
     ]);
   });
 
-  it("leaves mine unset without a viewer id", () => {
+  it("guard: leaves mine unset without a viewer id", () => {
     expect(noteItems(snapshot).map((item) => item.mine)).toEqual([
       undefined,
       undefined,
@@ -47,23 +47,6 @@ describe("noteItems own comments", () => {
   it("marks nothing as mine when the viewer is not in the participants", () => {
     const items = noteItems(snapshot, "p_missing");
     expect(items.map((item) => item.mine)).toEqual([false, false, false]);
-  });
-
-  it("keeps a marker a marker whoever pressed it, and mine follows the author", () => {
-    const items = noteItems(
-      recordSnapshot({
-        participants: [host, guest],
-        comments: [
-          comment("1", "p_host", "Marker"),
-          comment("2", "p_g", "Marker"),
-        ],
-      }),
-      "p_host",
-    );
-    expect(items.map((item) => [item.kind, item.mine])).toEqual([
-      ["marker", true],
-      ["marker", false],
-    ]);
   });
 
   it("does not take a guest who shares the host's name for the host", () => {

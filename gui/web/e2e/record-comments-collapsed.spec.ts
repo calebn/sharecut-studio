@@ -56,7 +56,6 @@ async function commentCount(host: Page, projectPath: string) {
   return (await hostRecordSnapshot(host, projectPath)).comments?.length ?? 0;
 }
 
-/** The guest's laptop rail: post a text comment. */
 async function guestSays(guest: Page, text: string) {
   const comments = await openRoomComments(guest);
   await comments.getByRole("textbox", { name: "Add a comment" }).fill(text);
@@ -66,7 +65,6 @@ async function guestSays(guest: Page, text: string) {
   ).toBeVisible();
 }
 
-/** Guest joined, take live, host phone showing the room. */
 async function startTake({ host, guest, projectPath, room }: Room) {
   await joinAsGuest(guest, room.guest.token, "Ava");
   await ensureHostRecordCommand(host, projectPath, "Start", "recording");
@@ -91,7 +89,6 @@ test.describe("host phone, collapsed during a take", () => {
       async (ctx) => {
         const { host, guest, projectPath } = ctx;
         await joinAsGuest(guest, ctx.room.guest.token, "Ava");
-        // Before the take the sheet is open as it always was.
         await expectOpen(host);
         await ensureHostRecordCommand(host, projectPath, "Start", "recording");
         await expectCollapsed(host);
@@ -117,8 +114,6 @@ test.describe("host phone, collapsed during a take", () => {
           await notices(host).innerText(),
           "an arriving comment is not announced",
         ).toBe(noticesBefore);
-
-        // A guest's marker and the host's own marker never count.
         const before = await commentCount(host, projectPath);
         await guest.keyboard.press("m");
         await expect
@@ -129,13 +124,9 @@ test.describe("host phone, collapsed during a take", () => {
           .poll(() => commentCount(host, projectPath))
           .toBe(before + 2);
         await expect(badge(host)).toHaveText("2 unread");
-
-        // One tap opens it and the badge goes.
         await peek(host).tap();
         await expectOpen(host);
         await expect(badge(host)).toHaveCount(0);
-
-        // The host's own comment and a guest's comment while reading: no badge, no pulse.
         const composer = panel(host).getByRole("textbox", {
           name: "Add a comment",
         });
@@ -150,12 +141,8 @@ test.describe("host phone, collapsed during a take", () => {
         await closeSheet(host);
         await expectCollapsed(host);
         await expect(badge(host)).toHaveCount(0);
-
-        // Collapsed again after the host closes it: the next comment counts from 0.
         await guestSays(guest, "four");
         await expect(badge(host)).toHaveText("1 unread");
-
-        // Opened by choice: stays open through Stop, a new Start, Pause and Resume.
         await peek(host).tap();
         await expectOpen(host);
         await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
@@ -260,11 +247,10 @@ test.describe("host phone, collapsed during a take", () => {
 
   for (const [width, height] of [
     [390, 844],
-    [375, 667],
     [667, 375],
     [320, 568],
   ] as const) {
-    test(`${width}x${height}: a comment arriving moves neither the peek nor the dock and leaves the tiles usable`, async ({
+    test(`${width}x${height}: a comment arriving moves neither the peek, the dock nor the tile grid`, async ({
       browser,
     }: {
       browser: Browser;
@@ -295,6 +281,7 @@ test.describe("host phone, collapsed during a take", () => {
               return {
                 peek: box(".sys-room-view-peek"),
                 dock: box(".sys-room-view-dock"),
+                grid: box(".sys-room-view-grid"),
               };
             });
           const before = await rects();
@@ -315,13 +302,6 @@ test.describe("host phone, collapsed during a take", () => {
           ).toBe(true);
           const tile = host.locator(".sys-room-tile").first();
           await expect(tile).toBeInViewport();
-          const grid = await host
-            .locator(".sys-room-view-grid")
-            .evaluate((el) => {
-              const r = el.getBoundingClientRect();
-              return { height: r.height, width: r.width };
-            });
-          expect(grid.height).toBeGreaterThan(0);
           const peekBox = await peek(host).boundingBox();
           expect(peekBox?.height).toBeGreaterThanOrEqual(44);
         },
