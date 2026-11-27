@@ -53,27 +53,45 @@ function dropQuietly(id: string): void {
   void dropInboxFile(id).catch(() => {});
 }
 
-/** Reads one received file, drops the inbox copy once the page holds it, and hands it to the import host. */
+function holdActive(): boolean {
+  return openImportBusy() || desktopCloseGuardArmed();
+}
+
+/**
+ * Reads one received file and drops the inbox copy once the page holds it. The holds are
+ * checked again after the read, which can take a while; a file that meets one is kept in
+ * `pending` and reported as not done, so the feeder offers it again when the hold clears.
+ */
 async function receive(
   item: OpenBundleItem,
   choose: (file: File) => void,
-): Promise<void> {
+  pending: Map<string, File>,
+  signal: AbortSignal,
+): Promise<boolean> {
   if (item.size > MAX_RECEIVED_BYTES) {
     refuse(OPEN_FILE_TOO_LARGE);
     dropQuietly(item.id);
-    return;
+    return true;
   }
-  let file: File;
-  try {
-    file = await fetchInboxFile(item.id, item.name);
-  } catch (failure) {
-    const gone = failure instanceof ApiError && failure.status === 404;
-    refuse(gone ? OPEN_FILE_GONE : OPEN_FILE_FAILED);
-    if (!gone) dropQuietly(item.id);
-    return;
+  let file = pending.get(item.id);
+  if (!file) {
+    try {
+      file = await fetchInboxFile(item.id, item.name, signal);
+    } catch (failure) {
+      if (signal.aborted) return false;
+      const gone = failure instanceof ApiError && failure.status === 404;
+      refuse(gone ? OPEN_FILE_GONE : OPEN_FILE_FAILED);
+      if (!gone) dropQuietly(item.id);
+      return true;
+    }
+    if (signal.aborted) return false;
+    pending.set(item.id, file);
+    dropQuietly(item.id);
   }
-  dropQuietly(item.id);
+  if (holdActive()) return false;
+  pending.delete(item.id);
   choose(file);
+  return true;
 }
 
 function Feeder({
@@ -87,8 +105,20 @@ function Feeder({
   const busy = useOpenImportBusy();
   const working = useRef(false);
   const told = useRef<string | null>(null);
+  const pending = useRef(new Map<string, File>());
+  const inflight = useRef<AbortController | null>(null);
   const [tick, setTick] = useState(0);
   const head = items[0];
+
+  useEffect(() => {
+    const held = pending.current;
+    return () => {
+      inflight.current?.abort();
+      inflight.current = null;
+      working.current = false;
+      held.clear();
+    };
+  }, []);
 
   useEffect(() => {
     void busy;
@@ -103,10 +133,16 @@ function Feeder({
       return () => window.clearTimeout(timer);
     }
     working.current = true;
-    void receive(head, bundle.choose).finally(() => {
-      working.current = false;
-      onTaken(head.id);
-    });
+    const controller = new AbortController();
+    inflight.current = controller;
+    void receive(head, bundle.choose, pending.current, controller.signal).then(
+      (done) => {
+        if (controller.signal.aborted) return;
+        working.current = false;
+        if (done) onTaken(head.id);
+        else setTick((n) => n + 1);
+      },
+    );
   }, [head, bundle, busy, tick, onTaken]);
 
   return null;

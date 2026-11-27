@@ -32,7 +32,7 @@ import {
   MAX_RECEIVED_BYTES,
   OpenBundleHost,
 } from "./OpenBundleHost";
-import { _resetOpenImportForTests } from "./openImportSignal";
+import { _resetOpenImportForTests, holdOpenImport } from "./openImportSignal";
 
 const { isTauri } = vi.hoisted(() => ({ isTauri: vi.fn(() => true) }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri }));
@@ -123,7 +123,11 @@ describe("OpenBundleHost", () => {
     push();
     render(<OpenBundleHost />);
     await sheet();
-    expect(fetchInbox).toHaveBeenCalledExactlyOnceWith(ID, NAME);
+    expect(fetchInbox).toHaveBeenCalledExactlyOnceWith(
+      ID,
+      NAME,
+      expect.any(AbortSignal),
+    );
     expect(dropInbox).toHaveBeenCalledExactlyOnceWith(ID);
     expect(previewSegment.mock.calls[0][0].name).toBe("cold-open.sharecutseg");
   });
@@ -211,7 +215,10 @@ describe("OpenBundleHost", () => {
     );
     await waitFor(() => expect(fetchInbox).toHaveBeenCalledTimes(2));
     await sheet();
-    expect(fetchInbox.mock.calls[1]).toEqual([ID_2, "second.sharecutseg"]);
+    expect(fetchInbox.mock.calls[1].slice(0, 2)).toEqual([
+      ID_2,
+      "second.sharecutseg",
+    ]);
   });
 
   it("adds to the library through the shared sheet", async () => {
@@ -263,6 +270,81 @@ describe("OpenBundleHost", () => {
     });
     await sheet();
     expect(window.location.pathname).toBe("/");
+  });
+
+  it("keeps a file whose fetch finishes under a busy signal, opening it once only when released", async () => {
+    let finish: (file: File) => void = () => {};
+    fetchInbox.mockReset().mockReturnValue(
+      new Promise<File>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    push();
+    render(<OpenBundleHost />);
+    await waitFor(() => expect(fetchInbox).toHaveBeenCalledTimes(1));
+    let release = () => {};
+    act(() => {
+      release = holdOpenImport();
+    });
+    await act(async () => {
+      finish(SEGMENT_FILE());
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(previewSegment).not.toHaveBeenCalled();
+    act(() => release());
+    await sheet();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(fetchInbox).toHaveBeenCalledTimes(1);
+    expect(previewSegment).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a file whose fetch finishes while a take is armed, opening it when the take ends", async () => {
+    let finish: (file: File) => void = () => {};
+    fetchInbox.mockReset().mockReturnValue(
+      new Promise<File>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    push();
+    render(<OpenBundleHost />);
+    await waitFor(() => expect(fetchInbox).toHaveBeenCalledTimes(1));
+    window.history.replaceState(null, "", `/?${CLOSE_GUARD_PARAM}=host`);
+    await act(async () => {
+      finish(SEGMENT_FILE());
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(said()).toBe(FINISH_THE_TAKE));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(previewSegment).not.toHaveBeenCalled();
+    window.history.replaceState(null, "", "/");
+    await sheet();
+    expect(fetchInbox).toHaveBeenCalledTimes(1);
+    expect(previewSegment).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts the fetch on unmount and does not open or drop anything", async () => {
+    let seen: AbortSignal | undefined;
+    fetchInbox.mockReset().mockImplementation((_id, _name, signal) => {
+      seen = signal;
+      return new Promise<File>((_, reject) => {
+        signal?.addEventListener("abort", () =>
+          reject(new DOMException("aborted", "AbortError")),
+        );
+      });
+    });
+    push();
+    const view = render(<OpenBundleHost />);
+    await waitFor(() => expect(fetchInbox).toHaveBeenCalledTimes(1));
+    expect(seen?.aborted).toBe(false);
+    view.unmount();
+    expect(seen?.aborted).toBe(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(said()).toBe("");
+    expect(dropInbox).not.toHaveBeenCalled();
+    expect(previewSegment).not.toHaveBeenCalled();
   });
 
   it("with Home, the Library sheet and this host mounted, opens one sheet and refreshes both lists", async () => {
