@@ -678,8 +678,31 @@ describe("Ruler selection handles", () => {
         [edge, false],
         [edge, true],
       ]);
-      pageInterrupts[kind]();
-      expect(onSelectionDragEnd).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(["interrupt", "release"] as const)(
+    "aborts the selection-edge drag's window listeners after the %s",
+    (how) => {
+      const signals: AbortSignal[] = [];
+      const add = window.addEventListener.bind(window);
+      vi.spyOn(window, "addEventListener").mockImplementation(
+        (type: string, listener: unknown, options?: unknown) => {
+          const signal = (options as AddEventListenerOptions | undefined)
+            ?.signal;
+          if (signal) signals.push(signal);
+          add(type, listener as EventListener, options as boolean);
+        },
+      );
+      const { handle } = setup({ selection });
+      const grip = handle("start");
+      fireEvent.pointerDown(grip, { pointerId: 1, clientX: 80 });
+      fireEvent.pointerMove(grip, { pointerId: 1, clientX: 120 });
+      expect(signals.length).toBeGreaterThan(0);
+      expect(signals.some((signal) => signal.aborted)).toBe(false);
+      if (how === "interrupt") pageInterrupts.blur();
+      else fireEvent.pointerUp(grip, { pointerId: 1, clientX: 120 });
+      expect(signals.every((signal) => signal.aborted)).toBe(true);
     },
   );
 
