@@ -545,7 +545,11 @@ describe("HostMcpDialog", () => {
     const { baseElement: container } = render(
       <HostMcpDialog open onClose={() => undefined} hasProject={false} />,
     );
-    expect(await screen.findByText(/Open an episode first/)).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Open an episode first. Your AI app has nothing to work on until you do.",
+      ),
+    ).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 });
@@ -686,6 +690,19 @@ describe("HostMcpDialog last-used line", () => {
     await advance(9000);
     expect(line()).toBe("An app used this address just now.");
     expect(activityMock.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  it("keeps the last line and keeps checking when a read times out", async () => {
+    activityMock.mockResolvedValueOnce(used(5));
+    activityMock.mockRejectedValueOnce(
+      new DOMException("The host didn't answer.", "TimeoutError"),
+    );
+    activityMock.mockResolvedValue(used(65));
+    await openDialog();
+    await advance(3000);
+    expect(line()).toBe("An app used this address just now.");
+    await advance(3000);
+    expect(line()).toBe("An app used this address 1 minute ago.");
   });
 
   it("stays blank when the first check fails", async () => {
