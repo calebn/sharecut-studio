@@ -147,6 +147,25 @@ describe("track.duckUnderSpeech", () => {
     expect(duckingReplanCount()).toBe(before + 1);
   });
 
+  it.each([
+    ["ducking_too_many_points", 400],
+    ["ducking_unknown_track", 422],
+  ])(
+    "also plans again when the apply is refused with %s (%i)",
+    async (code, status) => {
+      vi.mocked(api.applyDuckingCommand).mockRejectedValue(
+        new ApiError("Refused", code, status),
+      );
+      const before = duckingReplanCount();
+      await execute(
+        "track.duckUnderSpeech",
+        { planToken: "old" },
+        { skipWhen: true },
+      );
+      expect(duckingReplanCount()).toBe(before + 1);
+    },
+  );
+
   it("tells the host's refusal in its own words, without a connectivity claim", async () => {
     vi.mocked(api.previewDucking).mockRejectedValue(
       new ApiError("Too many dips.", "ducking_too_many_points", 400),

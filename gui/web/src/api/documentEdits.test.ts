@@ -784,10 +784,8 @@ describe("previewDucking", () => {
     const plan = await previewDucking("/tmp/ep");
     const [path, body] = vi.mocked(postHostDocumentCommand).mock.calls[0] ?? [];
     expect(path).toBe("/tmp/ep");
-    expect(body).toMatchObject({
-      type: "ApplyDucking",
-      payload: { dry_run: true },
-    });
+    expect(body).toMatchObject({ type: "ApplyDucking" });
+    expect(body?.payload).toEqual({ dry_run: true });
     expect(body).not.toHaveProperty("client_seq");
     expect(typeof body?.client_id).toBe("string");
     expect(typeof body?.command_id).toBe("string");

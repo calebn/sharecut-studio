@@ -784,14 +784,19 @@ describe("track content", () => {
       ).toBeDisabled();
     });
 
-    it("is not offered on a voice track, to an editor link or to a viewer, and sends no check", async () => {
-      open(withAudio);
-      open(music, [], "edit");
-      open(music, [], "view");
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      expect(screen.queryByRole("button", { name: /Duck music/ })).toBeNull();
-      expect(previewDucking).not.toHaveBeenCalled();
-    });
+    it.each([
+      ["a voice track", withAudio, undefined],
+      ["an editor link", music, "edit"],
+      ["a viewer", music, "view"],
+    ] as const)(
+      "is not offered on %s, and sends no check",
+      async (_name, track, access) => {
+        open(track, [], access);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        expect(screen.queryByRole("button", { name: /Duck music/ })).toBeNull();
+        expect(previewDucking).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it("shows the kind as plain text and hides the kind group, name, speaker, import, split and remove controls for a viewer", () => {
