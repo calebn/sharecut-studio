@@ -28,6 +28,9 @@ export const FINISH_THE_TAKE = "Finish the take, then your file will open.";
 
 const RETRY_MS = 1000;
 
+/** A read that has not finished by now is a failure, so one hung request cannot block every later file. */
+export const FETCH_TIMEOUT_MS = 120_000;
+
 function refuse(message: string): void {
   useDawStore.getState().announceStatus(message, { tone: "error" });
 }
@@ -75,14 +78,21 @@ async function receive(
   }
   let file = pending.get(item.id);
   if (!file) {
+    const limited = new AbortController();
+    const forward = () => limited.abort();
+    signal.addEventListener("abort", forward);
+    const timer = window.setTimeout(forward, FETCH_TIMEOUT_MS);
     try {
-      file = await fetchInboxFile(item.id, item.name, signal);
+      file = await fetchInboxFile(item.id, item.name, limited.signal);
     } catch (failure) {
       if (signal.aborted) return false;
       const gone = failure instanceof ApiError && failure.status === 404;
       refuse(gone ? OPEN_FILE_GONE : OPEN_FILE_FAILED);
       if (!gone) dropQuietly(item.id);
       return true;
+    } finally {
+      window.clearTimeout(timer);
+      signal.removeEventListener("abort", forward);
     }
     if (signal.aborted) return false;
     pending.set(item.id, file);

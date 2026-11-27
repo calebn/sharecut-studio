@@ -28,6 +28,7 @@ import {
   OPEN_FILE_TOO_LARGE,
 } from "./bundleCopy";
 import {
+  FETCH_TIMEOUT_MS,
   FINISH_THE_TAKE,
   MAX_RECEIVED_BYTES,
   OpenBundleHost,
@@ -163,7 +164,13 @@ describe("OpenBundleHost", () => {
     const view = render(<OpenBundleHost />);
     expect(view.container).toBeEmptyDOMElement();
     expect(document.querySelector("input[type=file]")).toBeNull();
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(fetchInbox).not.toHaveBeenCalled();
+    expect(
+      (window as unknown as Record<string, unknown[]>)[OPEN_BUNDLE_QUEUE_KEY],
+    ).toHaveLength(1);
   });
 
   it("says the file can't be found on a 404 and leaves nothing to delete", async () => {
@@ -398,5 +405,129 @@ describe("OpenBundleHost", () => {
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
     await waitFor(() => expect(main).toHaveFocus());
     main.remove();
+  });
+});
+
+function dropOnDocument(file: File) {
+  const event = new Event("drop", { bubbles: true, cancelable: true });
+  Object.assign(event, {
+    dataTransfer: { files: [file], types: ["Files"], dropEffect: "none" },
+  });
+  act(() => {
+    document.body.dispatchEvent(event);
+  });
+  return event;
+}
+
+describe("OpenBundleHost gates and timing", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const armTake = () =>
+    window.history.replaceState(null, "", `/?${CLOSE_GUARD_PARAM}=host`);
+  const disarmTake = () => window.history.replaceState(null, "", "/");
+  const advance = (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  it("does not take a file dropped on the page: only Home and the Library sheet listen", async () => {
+    render(<OpenBundleHost />);
+    const event = dropOnDocument(SEGMENT_FILE());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(previewSegment).not.toHaveBeenCalled();
+  });
+
+  it("announces Finish the take once while the same take stays armed", async () => {
+    vi.useFakeTimers();
+    armTake();
+    push();
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+    render(<OpenBundleHost />);
+    await advance(0);
+    await advance(3500);
+    const told = announce.mock.calls.filter(([m]) => m === FINISH_THE_TAKE);
+    expect(told).toHaveLength(1);
+    expect(fetchInbox).not.toHaveBeenCalled();
+  });
+
+  it("retries a held file no sooner than once a second", async () => {
+    vi.useFakeTimers();
+    armTake();
+    push();
+    render(<OpenBundleHost />);
+    await advance(0);
+    disarmTake();
+    await advance(900);
+    expect(fetchInbox).not.toHaveBeenCalled();
+    await advance(150);
+    expect(fetchInbox).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not drop or open a file whose fetch resolves after the host unmounted", async () => {
+    let finish: (file: File) => void = () => {};
+    fetchInbox.mockReset().mockReturnValue(
+      new Promise<File>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    push();
+    const view = render(<OpenBundleHost />);
+    await waitFor(() => expect(fetchInbox).toHaveBeenCalledTimes(1));
+    view.unmount();
+    await act(async () => {
+      finish(SEGMENT_FILE());
+      await Promise.resolve();
+    });
+    expect(dropInbox).not.toHaveBeenCalled();
+    expect(previewSegment).not.toHaveBeenCalled();
+    expect(said()).toBe("");
+  });
+
+  it("does not open a handed-over id again when it is announced once more", async () => {
+    push();
+    render(<OpenBundleHost />);
+    const dialog = await sheet();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    push();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(fetchInbox).toHaveBeenCalledTimes(1);
+    expect(previewSegment).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("gives up on a hung read after the timeout, says it couldn't open it, and moves on", async () => {
+    vi.useFakeTimers();
+    fetchInbox.mockReset().mockImplementation((id, _name, signal) =>
+      id === ID
+        ? new Promise<File>((_, reject) => {
+            signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          })
+        : Promise.resolve(SEGMENT_FILE()),
+    );
+    push(ID);
+    push(ID_2, "second.sharecutseg");
+    render(<OpenBundleHost />);
+    await advance(FETCH_TIMEOUT_MS - 1000);
+    expect(fetchInbox).toHaveBeenCalledTimes(1);
+    expect(said()).toBe("");
+    await advance(1000);
+    expect(said()).toBe(OPEN_FILE_FAILED);
+    expect(dropInbox).toHaveBeenCalledWith(ID);
+    await advance(0);
+    expect(fetchInbox).toHaveBeenCalledTimes(2);
+    expect(previewSegment).toHaveBeenCalledTimes(1);
   });
 });
