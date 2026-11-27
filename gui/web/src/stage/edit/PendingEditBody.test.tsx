@@ -325,6 +325,9 @@ describe("PendingEditBody", () => {
   it("saves one existing pending command for one timing-step click", async () => {
     render(<PendingEditBody edit={sessionCut} />);
     const start = screen.getByRole("spinbutton", { name: "Source start" });
+    await waitFor(() => expect(start).not.toHaveAttribute("aria-readonly"), {
+      timeout: 10_000,
+    });
     start.focus();
     await userEvent.keyboard("{ArrowUp}");
     await waitFor(() => expect(updatePendingEdit).toHaveBeenCalledTimes(1));
@@ -441,7 +444,9 @@ describe("PendingEditBody", () => {
       });
       render(<PendingEditBody edit={edit} />);
       expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-      fireEvent.click(await screen.findByRole("button", { name: "Leave" }));
+      const leave = await screen.findByRole("button", { name: "Leave" });
+      await waitFor(() => expect(leave).toBeEnabled(), { timeout: 10_000 });
+      fireEvent.click(leave);
       await waitFor(() =>
         expect(applySuggestedActions).toHaveBeenCalledExactlyOnceWith(
           "/tmp/p.json",
