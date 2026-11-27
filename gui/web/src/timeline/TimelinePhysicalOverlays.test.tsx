@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { StrictMode, useLayoutEffect, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChooserView, DetentView, HitRouter } from "./hitRouting";
 import type { TimelineChooserProps } from "./TimelineChooser";
@@ -45,7 +45,8 @@ let scrollRect: DOMRect;
 
 function Frame({
   current = detent,
-  nodeKey = "first",
+  scrollerKey = "first",
+  lanesKey = "first",
   lanes = true,
   scroller = true,
   onCommit,
@@ -53,7 +54,8 @@ function Frame({
   router = null,
 }: {
   current?: DetentView | null;
-  nodeKey?: string;
+  scrollerKey?: string;
+  lanesKey?: string;
   lanes?: boolean;
   scroller?: boolean;
   onCommit?: () => void;
@@ -73,14 +75,14 @@ function Frame({
       </button>
       {scroller ? (
         <div
-          key={`scroll-${nodeKey}`}
+          key={`scroll-${scrollerKey}`}
           ref={scrollerRef}
           data-testid="measurement-scroller"
         />
       ) : null}
       {lanes ? (
         <div
-          key={`lanes-${nodeKey}`}
+          key={`lanes-${lanesKey}`}
           ref={lanesRef}
           data-testid="measurement-lanes"
         />
@@ -158,17 +160,29 @@ describe("TimelinePhysicalOverlays physical input ownership", () => {
     expect(mark().style.top).toBe("160px");
   });
 
-  it("accepts equal-number replacement nodes without replacing the visible mark", () => {
-    const reads = measure();
-    const { rerender } = render(<Frame />);
-    const source = screen.getByTestId("measurement-lanes");
-    const visible = mark();
-    expect(reads).toHaveBeenCalledTimes(4);
-    rerender(<Frame nodeKey="replacement" />);
-    expect(screen.getByTestId("measurement-lanes")).not.toBe(source);
-    expect(mark()).toBe(visible);
-    expect(reads).toHaveBeenCalledTimes(8);
-  });
+  it.each(["scroller", "lanes"] as const)(
+    "accepts a replacement %s without replacing the visible mark",
+    (source) => {
+      const reads = measure();
+      const { rerender } = render(<Frame />);
+      const originalScroller = screen.getByTestId("measurement-scroller");
+      const originalLanes = screen.getByTestId("measurement-lanes");
+      const visible = mark();
+      reads.mockClear();
+      rerender(
+        <Frame
+          scrollerKey={source === "scroller" ? "replacement" : undefined}
+          lanesKey={source === "lanes" ? "replacement" : undefined}
+        />,
+      );
+      const scroller = screen.getByTestId("measurement-scroller");
+      const lanes = screen.getByTestId("measurement-lanes");
+      expect(scroller === originalScroller).toBe(source !== "scroller");
+      expect(lanes === originalLanes).toBe(source !== "lanes");
+      expect(mark()).toBe(visible);
+      expect(reads.mock.contexts).toEqual([scroller, lanes, scroller, lanes]);
+    },
+  );
 
   it("keeps lanes-first, fractional, inverted and actually missing source bounds", () => {
     measure();
@@ -225,6 +239,32 @@ it("measures a chooser only with a router and refreshes its bounds after reopeni
 
   scrollRect = new DOMRect(40, 30, 780, 410);
   rerender(<Frame current={null} chooser={chooserView} router={router} />);
+  expect(
+    screen.getByRole("button", { name: "250: 40, 30, 820, 440" }),
+  ).toBeInTheDocument();
+});
+
+it("settles and refreshes chooser and detent measurements under StrictMode", () => {
+  measure();
+  const router = chooserRouter();
+  const { rerender } = render(
+    <StrictMode>
+      <Frame chooser={chooserView} router={router} />
+    </StrictMode>,
+  );
+  expect(mark().style.top).toBe("100px");
+  expect(
+    screen.getByRole("button", { name: "250: 20, 30, 820, 530" }),
+  ).toBeInTheDocument();
+
+  laneRect = new DOMRect(50, 150, 600, 200);
+  scrollRect = new DOMRect(40, 30, 780, 410);
+  rerender(
+    <StrictMode>
+      <Frame chooser={chooserView} router={router} />
+    </StrictMode>,
+  );
+  expect(mark().style.top).toBe("150px");
   expect(
     screen.getByRole("button", { name: "250: 40, 30, 820, 440" }),
   ).toBeInTheDocument();
