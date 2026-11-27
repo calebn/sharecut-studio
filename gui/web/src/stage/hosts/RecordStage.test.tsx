@@ -1,7 +1,15 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 import {
   addTrackCommand,
   loadHostRecordSessions,
@@ -236,6 +244,117 @@ afterEach(() => {
   useRecordHostStore.getState().resetConnection();
   Reflect.deleteProperty(navigator, "storage");
   clearRegisteredCommands();
+});
+
+describe("Record stage host phone Comments sheet (#4660)", () => {
+  const comment = (id: string, author: string, body = `say ${id}`) => ({
+    id,
+    take_index: 0,
+    recording_ms: 4000,
+    pressed_wall_ms: 0,
+    author,
+    body,
+  });
+  const peek = () =>
+    document.querySelector(".sys-room-view-peek") as HTMLElement;
+  const badge = () => document.querySelector(".sys-dock-badge--inline");
+  const sheet = () =>
+    screen.queryByRole("dialog", { name: "Comments and takes" });
+  const recording = (comments: ReturnType<typeof comment>[] = []) => ({
+    participants: [hostPerson(), avaGuest()],
+    state: "recording" as const,
+    take_index: 0,
+    comments,
+  });
+
+  it("starts collapsed to the peek bar during a live take on a phone", async () => {
+    stubViewportShell("phone");
+    setRoom(recording());
+    mount();
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    expect(sheet()).toBeNull();
+    expect(peek()).toHaveAttribute("aria-expanded", "false");
+    expect(document.documentElement).not.toHaveAttribute("data-room-sheet");
+  });
+
+  it("keeps the sheet open before the take on a phone, and collapses it when the take starts", async () => {
+    stubViewportShell("phone");
+    setRoom({ participants: [hostPerson(), avaGuest()] });
+    mount();
+    await waitFor(() => expect(sheet()).toBeVisible());
+    act(() => setRoom({ ...recording(), server_time_ns: 9 }));
+    await waitFor(() => expect(sheet()).toBeNull());
+    expect(peek()).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps the open Comments rail on a desktop host during a take", async () => {
+    setRoom(recording());
+    mount();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("complementary", { name: "Comments and takes" }),
+      ).toBeVisible(),
+    );
+    expect(peek()).toBeNull();
+  });
+
+  it("badges a guest's comment, not the host's own, and announces nothing", async () => {
+    stubViewportShell("phone");
+    const announce = vi.fn();
+    const original = useDawStore.getState().announceStatus;
+    useDawStore.setState({ announceStatus: announce });
+    onTestFinished(() => useDawStore.setState({ announceStatus: original }));
+    setRoom(recording([comment("c1", "p_g", "before")]));
+    mount();
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    expect(badge()).toBeNull();
+    announce.mockClear();
+    act(() =>
+      setRoom({
+        ...recording([
+          comment("c1", "p_g", "before"),
+          comment("c2", "p_host", "mine"),
+          comment("c3", "p_g", "Marker"),
+        ]),
+        server_time_ns: 10,
+      }),
+    );
+    expect(badge()).toBeNull();
+    act(() =>
+      setRoom({
+        ...recording([
+          comment("c1", "p_g", "before"),
+          comment("c2", "p_host", "mine"),
+          comment("c3", "p_g", "Marker"),
+          comment("c4", "p_g", "a real note"),
+        ]),
+        server_time_ns: 11,
+      }),
+    );
+    expect(badge()).toHaveTextContent("1");
+    expect(peek()).toHaveAccessibleName(/1 ?unread$/);
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it("does not count the comments already in the room when the snapshot drops and returns", async () => {
+    stubViewportShell("phone");
+    const existing = [1, 2, 3, 4, 5].map((n) => comment(`c${n}`, "p_g"));
+    setRoom(recording(existing));
+    mount();
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+    await waitFor(() => expect(peek()).toBeNull());
+    act(() => setRoom({ ...recording(existing), server_time_ns: 20 }));
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    expect(badge()).toBeNull();
+    act(() =>
+      setRoom({
+        ...recording([...existing, comment("c6", "p_g")]),
+        server_time_ns: 21,
+      }),
+    );
+    expect(badge()).toHaveTextContent("1");
+  });
 });
 
 describe("Record stage", () => {

@@ -56,6 +56,7 @@ import { STOP_DETAIL, STOP_TITLE } from "../../system/RecordButton";
 import type { RoomViewProps } from "../../system/RoomView";
 import { lookingInCount } from "../../system/roomViewModel";
 import { TakesTray } from "../../system/TakesTray";
+import { UnreadStore } from "../../system/useUnreadNotes";
 import { Toast } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { dbToFraction } from "../../ui/metering";
@@ -512,6 +513,20 @@ function RecordStageBody({
     return () => setRoomKeys(null);
   }, [keyTake, keyStart, keyStop, keyPause, keyMute]);
 
+  const viewerWidth = viewerWidthOf(shell);
+  // What the host has seen lives here, not in RoomView, which remounts when
+  // the snapshot drops and returns. A different room starts it afresh.
+  const [unreadStore] = useState(() => new UnreadStore());
+  const sessionId = snapshot?.session_id;
+  const lastRoom = useRef(sessionId);
+  useEffect(() => {
+    if (sessionId === undefined || lastRoom.current === sessionId) return;
+    if (lastRoom.current !== undefined) {
+      unreadStore.reset();
+    }
+    lastRoom.current = sessionId;
+  }, [sessionId, unreadStore]);
+
   const roomProps: RoomViewProps | null = snapshot
     ? {
         seat: "host",
@@ -520,10 +535,12 @@ function RecordStageBody({
         people,
         lookingIn: lookingInCount(snapshot.watchers),
         phase,
-        viewerWidth: viewerWidthOf(shell),
+        viewerWidth,
         alerts,
         defaultNotesOpen: true,
-        notes: noteItems(snapshot),
+        collapseNotesInTake: viewerWidth === "phone",
+        countUnread: viewerWidth === "phone" ? unreadStore : undefined,
+        notes: noteItems(snapshot, host?.participant_id),
         noteVisibility: false,
         notesDisabledReason: liveTakeOpen(state)
           ? undefined

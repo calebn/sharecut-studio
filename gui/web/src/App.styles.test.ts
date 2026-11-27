@@ -279,4 +279,50 @@ describe("App styles", () => {
     expect(column).toMatch(/padding-inline-end:\s*0/);
     expect(column).not.toMatch(/height|margin/);
   });
+
+  describe("the host phone peek's unread badge (#4660)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(
+      join(here, "styles/partials/system-record.css"),
+      "utf8",
+    );
+    const body = (selector: string) =>
+      css.match(new RegExp(`${selector}\\s*\\{([^}]*)}`))?.[1] ?? "";
+
+    it("keeps the touch floor on the peek and gives the inline badge a token radius, no px", () => {
+      expect(body("\\.sys-room-view-peek")).toMatch(
+        /min-block-size:\s*var\(--touch-min\)/,
+      );
+      const inline = body("\\.sys-dock-badge--inline");
+      expect(inline).toMatch(/position:\s*static/);
+      expect(inline).toMatch(/border-radius:\s*var\(--radius-xl\)/);
+      expect(inline).not.toMatch(/\dpx/);
+    });
+
+    it("pulses only under no-preference motion, once, on the loop token, without fading the count", () => {
+      const keyframes = css.match(
+        /@keyframes room-peek-badge-pulse\s*\{([\s\S]*?)\n\}/,
+      )?.[1];
+      expect(keyframes).toBeTruthy();
+      expect(keyframes).toMatch(/transform:\s*scale\(/);
+      expect(keyframes).not.toMatch(/opacity/);
+      const uses = [
+        ...css.matchAll(/animation:[^;]*room-peek-badge-pulse[^;]*;/g),
+      ];
+      expect(uses).toHaveLength(1);
+      expect(uses[0]?.[0]).toMatch(/var\(--motion-loop-pipeline\)/);
+      expect(uses[0]?.[0]).not.toMatch(/infinite/);
+      const motion = css.match(
+        /@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?)\n\}/g,
+      );
+      expect(
+        motion?.some((block) => block.includes("room-peek-badge-pulse")),
+      ).toBe(true);
+      const outside = css.replace(
+        /@media \(prefers-reduced-motion: no-preference\)\s*\{[\s\S]*?\n\}/g,
+        "",
+      );
+      expect(outside).not.toMatch(/animation:[^;]*room-peek-badge-pulse/);
+    });
+  });
 });

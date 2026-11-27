@@ -129,6 +129,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "#2908 requires readable desktop and phone screenshot receipts in light and dark for real selected processing and sound-action/session preferences",
   },
+  "record-comments-collapsed.spec.ts": {
+    loops: 1,
+    reason:
+      "axe contrast of the unread badge in the host phone's peek bar differs per theme, so both are the subject (#4660)",
+  },
   "record-comments-sheet-dock.spec.ts": {
     loops: 1,
     reason:

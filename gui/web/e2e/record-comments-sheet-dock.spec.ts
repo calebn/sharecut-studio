@@ -112,6 +112,7 @@ const HOST_VIEWPORTS = [
   [390, 844],
   [375, 667],
   [667, 375],
+  [320, 568],
 ] as const;
 
 test.describe("host phone", () => {
@@ -133,6 +134,11 @@ test.describe("host phone", () => {
             "Start",
             "recording",
           );
+          // A live take starts collapsed to the peek bar; one tap opens it.
+          await expect(peek(host)).toHaveAttribute("aria-expanded", "false");
+          await expect(panel(host)).toHaveCount(0);
+          await expectNoRoomSheetState(host);
+          await peek(host).tap();
           await expect(panel(host)).toBeVisible();
           await expect(panel(host)).toHaveClass(/sys-room-comments/);
           await expect(dock(host)).toBeVisible();

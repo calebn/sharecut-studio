@@ -22,6 +22,8 @@ export type NoteItem = {
    * everyone, so markers carry none.
    */
   visibility?: NoteVisibility;
+  /** Written by the viewer, by participant id (so a namesake is not mistaken for them). Unset when unknown. */
+  mine?: boolean;
 };
 
 /** What the composer hands to `onSend`. */

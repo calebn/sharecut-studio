@@ -3,7 +3,11 @@ import { clockText } from "../system/roomPhase";
 import { MARKER_BODY } from "./liveCommentQueue";
 import type { RecordSnapshot } from "./types";
 
-export function noteItems(snapshot: RecordSnapshot | null): NoteItem[] {
+/** `selfId` is the viewer's participant id; with it each row says whether it is theirs. */
+export function noteItems(
+  snapshot: RecordSnapshot | null,
+  selfId?: string,
+): NoteItem[] {
   if (!snapshot) {
     return [];
   }
@@ -21,6 +25,9 @@ export function noteItems(snapshot: RecordSnapshot | null): NoteItem[] {
       author: byId.get(comment.author) ?? { name: comment.author },
       time: clockText(comment.recording_ms / 1000),
     };
+    if (selfId !== undefined) {
+      item.mine = comment.author === selfId;
+    }
     if (!marker) {
       item.text = comment.body;
       item.visibility = "everyone";
