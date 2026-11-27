@@ -208,7 +208,7 @@ For Windows, use `"command": "C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\pod
 1. Run `podcast gui` and open an episode.
 2. Choose **Menu → Connect agent…** to copy the URL:
    `http://127.0.0.1:8765/mcp`
-3. Keep ShareCut Studio running while the agent is connected.
+3. Keep ShareCut Studio running while the agent uses it.
 
 The endpoint is loopback-only and applies tools to the currently open episode.
 It is not OAuth, not a share token, and is unsuitable for remote or
@@ -236,6 +236,8 @@ on a monotonic clock, so after a clock change they can differ; trust `age_second
 "Used a minute ago" does not mean the app is still connected, and "never used" only
 means nothing has called since Studio started. Any local program that sends a valid
 request counts, not only an agent.
+The dialog asks every 3 seconds and gives up on a read that takes more than 10 seconds,
+keeping the last line it showed.
 
 Use POST for host MCP requests. GET and HEAD return `405 Allow: POST` rather
 than opening a standalone SSE stream that cannot receive events from another
