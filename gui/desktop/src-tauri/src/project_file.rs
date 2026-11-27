@@ -271,9 +271,13 @@ mod tests {
         let dir = Dir::new("rejects");
         let file = dir.file("episode.sharecut");
         let path = file.to_str().unwrap().to_string();
+        // Real files, so only the flag check can be the reason these are refused.
+        dir.file("-episode.sharecut");
+        dir.file("--open.sharecut");
         let rejected = [
             format!("--open={path}"),
             "-episode.sharecut".to_string(),
+            "--open.sharecut".to_string(),
             format!("file://{path}"),
             "https://example.test/episode.sharecut".to_string(),
             "sharecut-dev://r/token".to_string(),
@@ -299,13 +303,22 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn rejects_control_characters_and_nul() {
         let dir = Dir::new("control");
-        for name in ["a\u{0}b.sharecut", "a\nb.sharecut", "a\tb.sharecut"] {
-            let arg = format!("{}/{name}", dir.0.display());
-            assert_eq!(from_args(&[arg.as_str()], &dir.0), None, "{name:?}");
+        // Real files for the ones the OS allows, so the control-character check is what refuses them.
+        for name in ["a\nb.sharecut", "a\tb.sharecut"] {
+            let file = dir.file(name);
+            assert!(file.exists(), "{name:?}");
+            assert_eq!(
+                from_args(&[file.to_str().unwrap()], &dir.0),
+                None,
+                "{name:?}"
+            );
         }
+        let nul = format!("{}/a\u{0}b.sharecut", dir.0.display());
+        assert_eq!(from_args(&[nul.as_str()], &dir.0), None);
     }
 
     #[test]

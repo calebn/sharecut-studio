@@ -848,3 +848,19 @@ def test_rust_host_spells_the_project_extension_like_the_python_constant() -> No
         distribution_profile_from_mapping(_valid_profile() | {"project_file_association": True})
     )
     assert overlay["bundle"]["fileAssociations"][0]["ext"] == [match.group(1)]
+
+
+def test_rust_host_and_web_app_agree_on_the_open_project_hand_off() -> None:
+    rust = (ROOT / "gui" / "desktop" / "src-tauri" / "src" / "project_file.rs").read_text()
+    web = (ROOT / "gui" / "web" / "src" / "desktop" / "openProjectFile.ts").read_text()
+    pairs = {
+        "OPEN_PROJECT_FRAGMENT_KEY": "OPEN_PROJECT_FRAGMENT_KEY",
+        "OPEN_PROJECT_EVENT": "OPEN_PROJECT_FILE_EVENT",
+        "OPEN_PROJECT_QUEUE": "OPEN_PROJECT_QUEUE_KEY",
+    }
+    for rust_name, web_name in pairs.items():
+        rust_match = re.search(rf'pub const {rust_name}: &str = "([^"]+)";', rust)
+        web_match = re.search(rf'export const {web_name} = "([^"]+)";', web)
+        assert rust_match is not None, rust_name
+        assert web_match is not None, web_name
+        assert rust_match.group(1) == web_match.group(1), rust_name

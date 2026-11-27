@@ -694,8 +694,8 @@ fn take_pending_project_file(app: &tauri::AppHandle) -> Option<PathBuf> {
 }
 
 fn open_engine_window(app: &tauri::AppHandle, port: u16) {
-    let project = take_pending_project_file(app);
     if let Some(win) = app.get_webview_window("main") {
+        let project = take_pending_project_file(app);
         let url = sharecut::project_file::engine_url(port, project.as_deref());
         let target = serde_json::to_string(&url).unwrap_or_else(|_| "\"about:blank\"".into());
         eval_js(&win, &format!("window.location.replace({target})"));

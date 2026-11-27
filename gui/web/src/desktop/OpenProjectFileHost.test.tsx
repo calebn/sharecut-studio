@@ -1,6 +1,6 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerProjectMediaCommands } from "../commands/projectMedia";
+import { clearRegisteredCommands, listRegisteredIds } from "../commands/execute";
 import { _resetProjectOpenInFlightForTests } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { ApiError } from "../utils/apiError";
@@ -52,7 +52,7 @@ beforeEach(() => {
   isTauri.mockReturnValue(true);
   openEpisodeProject.mockReset();
   openEpisodeProject.mockReturnValue(new Promise(() => undefined));
-  registerProjectMediaCommands();
+  clearRegisteredCommands();
   _resetProjectOpenInFlightForTests();
   _resetOpenProjectFileForTests();
   useDawStore.setState({ projectPath: "", statusAnnouncement: "" });
@@ -76,6 +76,31 @@ describe("OpenProjectFileHost", () => {
     expect(window.location.hash).toBe("");
     expect(window.location.search).toBe("?x=1");
     expect(window.history.state).toEqual({ k: 1 });
+    render(<OpenProjectFileHost />);
+    await flush();
+    expect(openEpisodeProject).toHaveBeenCalledExactlyOnceWith(PATH);
+  });
+
+  it("registers project.open itself when the host mounts before any screen did", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      `/#open-project=${encodeURIComponent(PATH)}`,
+    );
+    captureBootProjectFile();
+    expect(listRegisteredIds()).not.toContain("project.open");
+    render(<OpenProjectFileHost />);
+    await flush();
+    expect(listRegisteredIds()).toContain("project.open");
+    expect(openEpisodeProject).toHaveBeenCalledWith(PATH);
+    expect(openEpisodeProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("registers project.open itself for a path queued before the host mounted", async () => {
+    (window as unknown as Record<string, unknown>)[OPEN_PROJECT_QUEUE_KEY] = [
+      PATH,
+    ];
+    expect(listRegisteredIds()).not.toContain("project.open");
     render(<OpenProjectFileHost />);
     await flush();
     expect(openEpisodeProject).toHaveBeenCalledExactlyOnceWith(PATH);
@@ -140,9 +165,35 @@ describe("OpenProjectFileHost", () => {
     expect(said()).toBe("Stop the take before switching projects");
     useDawStore.setState({ statusAnnouncement: "" });
     window.history.replaceState(null, "", "/");
+    push(PATH);
     await flush();
-    expect(openEpisodeProject).not.toHaveBeenCalled();
+    expect(openEpisodeProject).toHaveBeenCalledExactlyOnceWith(PATH);
     expect(said()).toBe("");
+  });
+
+  it("does not reload when the engine resolves the path to the open project", async () => {
+    const resolved = "/private/tmp/ep/episode.sharecut";
+    useDawStore.setState({ projectPath: resolved });
+    openEpisodeProject.mockResolvedValue({ project_path: resolved });
+    const assign = vi.fn();
+    const real = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...real, href: real.href, assign },
+    });
+    try {
+      render(<OpenProjectFileHost />);
+      push("/tmp/ep/episode.sharecut");
+      await flush();
+      await flush();
+      expect(openEpisodeProject).toHaveBeenCalledOnce();
+      expect(assign).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: real,
+      });
+    }
   });
 
   it("shows the engine's refusal as an open failure", async () => {
