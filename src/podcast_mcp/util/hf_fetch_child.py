@@ -23,6 +23,7 @@ import errno
 import io
 import json
 import os
+import re
 import sys
 import threading
 from typing import Any, TextIO
@@ -87,14 +88,9 @@ Error: Request error: HTTP status client error (401 Unauthorized), domain: https
 
 
 _DISK_MESSAGE_MARKERS = ("no space left", "enospc", "disk full")
-"""How a full disk reads inside an exception that carries no ``errno``: hf_xet's Rust core wraps
+"""How a full disk reads inside an hf_xet error that carries no ``errno``: its Rust core wraps
 the OS error in a plain ``RuntimeError`` (``... File reconstruction error: No space left on
 device (os error 28)``), which would otherwise match the Xet prefixes and fall back."""
-
-
-def _is_disk_message(exc: BaseException) -> bool:
-    text = str(exc).lower()
-    return any(marker in text for marker in _DISK_MESSAGE_MARKERS)
 
 
 def _is_xet(exc: BaseException) -> bool:
@@ -109,13 +105,39 @@ def _is_xet(exc: BaseException) -> bool:
     return isinstance(exc, RuntimeError) and str(exc).startswith(_XET_MESSAGE_PREFIXES)
 
 
+_OS_ERROR = re.compile(r"\(os error (\d+)\)")
+_WINDOWS_DISK_FULL = 112  # ERROR_DISK_FULL, how Rust prints a full disk on Windows
+
+
+def _xet_disk_errno(exc: BaseException) -> int | None:
+    """The OS error behind an hf_xet failure that reports a full or unwritable disk, else None.
+
+    Only an hf_xet-shaped error is read, so a CAS 507 body or a network error that merely says
+    "disk full" keeps its own kind. The Rust core words the OS error as ``(os error N)``; a
+    marker with no number means a full disk.
+    """
+    if isinstance(exc, OSError) or not _is_xet(exc):
+        return None
+    text = str(exc)
+    found = _OS_ERROR.search(text)
+    if found is not None:
+        number = int(found.group(1))
+        if number == _WINDOWS_DISK_FULL:
+            return errno.ENOSPC
+        if number in _DISK_ERRNOS:
+            return number
+    if any(marker in text.lower() for marker in _DISK_MESSAGE_MARKERS):
+        return errno.ENOSPC
+    return None
+
+
 def describe(exc: BaseException) -> dict[str, Any]:
     """The error line for ``exc``: its class name, http status, kind and OS error number."""
     status = _status(exc)
-    code = exc.errno if isinstance(exc, OSError) else None
+    code = exc.errno if isinstance(exc, OSError) else _xet_disk_errno(exc)
     if status is not None:
         kind = "http"
-    elif code in _DISK_ERRNOS or _is_disk_message(exc):
+    elif code in _DISK_ERRNOS:
         kind = "disk"
     elif _is_network(exc) or _is_xet(exc):
         kind = "network"
