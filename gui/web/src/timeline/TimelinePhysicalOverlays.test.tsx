@@ -1,9 +1,40 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DetentView } from "./hitRouting";
+import type { ChooserView, DetentView, HitRouter } from "./hitRouting";
+import type { TimelineChooserProps } from "./TimelineChooser";
 import { TimelinePhysicalOverlays } from "./TimelinePhysicalOverlays";
 import { visibleBox } from "./visibleBox";
+
+vi.mock("./TimelineChooser", () => ({
+  TimelineChooser: ({ bounds, view, router }: TimelineChooserProps) => (
+    <button type="button" onClick={router.close}>
+      {view.origin.x}: {bounds.left}, {bounds.top}, {bounds.right},{" "}
+      {bounds.bottom}
+    </button>
+  ),
+}));
+
+const chooserView: ChooserView = {
+  origin: { x: 250, y: 120 },
+  hits: [],
+  fingerDown: false,
+  over: null,
+  armed: false,
+};
+
+function chooserRouter(): HitRouter {
+  return {
+    dispose: vi.fn(),
+    defers: () => false,
+    claimsClick: () => false,
+    longPress: vi.fn(),
+    choose: vi.fn(),
+    openCreate: () => false,
+    close: vi.fn(),
+    disarm: vi.fn(),
+  };
+}
 
 const detent: DetentView = {
   x: 250,
@@ -18,12 +49,16 @@ function Frame({
   lanes = true,
   scroller = true,
   onCommit,
+  chooser = null,
+  router = null,
 }: {
   current?: DetentView | null;
   nodeKey?: string;
   lanes?: boolean;
   scroller?: boolean;
   onCommit?: () => void;
+  chooser?: ChooserView | null;
+  router?: HitRouter | null;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
@@ -53,10 +88,10 @@ function Frame({
       <TimelinePhysicalOverlays
         scrollerRef={scrollerRef}
         lanesRef={lanesRef}
-        chooser={null}
+        chooser={chooser}
         create={null}
         detent={current}
-        router={null}
+        router={router}
         phone={false}
       />
     </>
@@ -165,4 +200,32 @@ describe("TimelinePhysicalOverlays physical input ownership", () => {
     expect(mark().style.top).toBe("0px");
     expect(mark().style.height).toBe(`${window.innerHeight}px`);
   });
+});
+
+it("measures a chooser only with a router and refreshes its bounds after reopening", () => {
+  const read = measure();
+  const router = chooserRouter();
+  const { rerender } = render(<Frame current={null} chooser={chooserView} />);
+  expect(read).not.toHaveBeenCalled();
+
+  rerender(<Frame current={null} chooser={chooserView} router={router} />);
+  const first = screen.getByRole("button", { name: "250: 20, 30, 820, 530" });
+  fireEvent.click(first);
+  expect(router.close).toHaveBeenCalledOnce();
+
+  rerender(<Frame current={null} router={router} />);
+  expect(first).not.toBeInTheDocument();
+  // Keep right and top identical. A left-only or bottom-only bound change
+  // must be enough to publish its own measurement.
+  scrollRect = new DOMRect(40, 30, 780, 500);
+  rerender(<Frame current={null} chooser={chooserView} router={router} />);
+  expect(
+    screen.getByRole("button", { name: "250: 40, 30, 820, 530" }),
+  ).toBeInTheDocument();
+
+  scrollRect = new DOMRect(40, 30, 780, 410);
+  rerender(<Frame current={null} chooser={chooserView} router={router} />);
+  expect(
+    screen.getByRole("button", { name: "250: 40, 30, 820, 440" }),
+  ).toBeInTheDocument();
 });
