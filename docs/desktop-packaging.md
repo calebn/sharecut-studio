@@ -385,7 +385,7 @@ into it; there is no sidecar process.
   host exports that folder as `PODCAST_IOS_INBOX_DIR` (`ios_engine_environment`). A slot keeps what arrives before the engine page
   has loaded and replays it when the page finishes loading; the host then pushes `{id, name, size}` onto
   `window.__sharecutOpenBundleQueue` and fires `sharecut:open-bundle`. The page (`OpenBundleHost`, [gui-mobile.md](gui-mobile.md)) reads the bytes with
-  `GET /api/import/inbox/{id}` and removes the copy with `DELETE` once the page holds the bytes, or when the file is refused (over 256 MiB) or can't be fetched, both host-only (a relayed request gets 403), `Cache-Control: no-store`, and 404 when the id is not a version-4 uuid, the entry is gone or the variable is unset. The route
+  `GET /api/import/inbox/{id}` and removes the copy with `DELETE` once the page holds the bytes, or when the file is refused (over 256 MiB) or fails to fetch for any reason other than the copy already being gone (a 404 sends no `DELETE`), both host-only (a relayed request gets 403), `Cache-Control: no-store`, and 404 when the id is not a version-4 uuid, the entry is gone or the variable is unset. The route
   serves the one regular file in the entry; the staged import re-validates it.
 - **Proof.** `make ios-sim-proof` launches the app and asserts what it can from the Mac, reading
   the audit for the exchange (answered 200 once; made-up codes get 403 and no cookie), the page's

@@ -116,7 +116,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const sheet = () => screen.findByRole("dialog", { name: "Import a segment" });
+const sheet = (timeout = 1000) =>
+  screen.findByRole("dialog", { name: "Import a segment" }, { timeout });
 
 describe("OpenBundleHost", () => {
   it("stages a file queued before it mounted, reading it by id and dropping the inbox copy", async () => {
@@ -318,8 +319,28 @@ describe("OpenBundleHost", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(previewSegment).not.toHaveBeenCalled();
     window.history.replaceState(null, "", "/");
-    await sheet();
+    await sheet(3000);
     expect(fetchInbox).toHaveBeenCalledTimes(1);
+    expect(previewSegment).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves on to the next file when handing one over throws", async () => {
+    const active = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      "activeElement",
+    )?.get as ((this: Document) => Element | null) | undefined;
+    vi.spyOn(document, "activeElement", "get").mockImplementation(function (
+      this: Document,
+    ) {
+      if (fetchInbox.mock.calls.length === 1) throw new Error("boom");
+      return active?.call(this) ?? null;
+    });
+    push(ID);
+    push(ID_2, "second.sharecutseg");
+    render(<OpenBundleHost />);
+    await sheet();
+    expect(fetchInbox).toHaveBeenCalledTimes(2);
+    expect(said()).toBe(OPEN_FILE_FAILED);
     expect(previewSegment).toHaveBeenCalledTimes(1);
   });
 

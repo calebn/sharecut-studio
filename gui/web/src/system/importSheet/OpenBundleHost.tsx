@@ -90,7 +90,11 @@ async function receive(
   }
   if (holdActive()) return false;
   pending.delete(item.id);
-  choose(file);
+  try {
+    choose(file);
+  } catch {
+    refuse(OPEN_FILE_FAILED);
+  }
   return true;
 }
 
