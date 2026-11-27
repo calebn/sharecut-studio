@@ -90,17 +90,21 @@ describe("transcriptIndex", () => {
     expect(transcriptIndex(undefined).transcribed.size).toBe(0);
   });
 
-  it("takes the server's transcribed flag over the words, and the words when it is absent", () => {
+  it("counts a track the server flags or that has words, never dropping one for the other", () => {
     const { transcribed } = transcriptIndex(
-      [{ track_id: "c", speaker: "Noor" }],
+      [
+        { track_id: "c", speaker: "Noor" },
+        { track_id: "e", speaker: "Ines" },
+      ],
       [
         sampleTrack({ id: "a", transcribed: true }),
         sampleTrack({ id: "b", transcribed: false }),
         sampleTrack({ id: "c" }),
         sampleTrack({ id: "d" }),
+        sampleTrack({ id: "e", transcribed: false }),
       ],
     );
-    expect([...transcribed].sort()).toEqual(["a", "c"]);
+    expect([...transcribed].sort()).toEqual(["a", "c", "e"]);
   });
 });
 

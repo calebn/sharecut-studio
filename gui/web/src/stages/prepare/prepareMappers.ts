@@ -205,13 +205,10 @@ export function transcriptIndex(
     set.add(row.speaker);
     speakers.set(row.track_id, set);
   }
-  const flagged = new Map(tracks.map((t) => [t.id, t.transcribed]));
-  const heard = [...speakers.keys()].filter(
-    (id) => flagged.get(id) === undefined,
-  );
-  const stored = tracks.filter((t) => t.transcribed).map((t) => t.id);
+  const transcribed = new Set(speakers.keys());
+  for (const track of tracks) if (track.transcribed) transcribed.add(track.id);
   return {
-    transcribed: new Set([...heard, ...stored]),
+    transcribed,
     voices: new Map([...speakers].map(([id, set]) => [id, set.size])),
   };
 }

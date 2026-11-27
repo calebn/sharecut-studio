@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 from podcast_mcp.engines.asr_loops import drop_looped_words, guard_transcript
@@ -99,6 +100,25 @@ def _audio_matches(
     return not seen or sha[:16] in seen
 
 
+_SHA_MEMO_LIMIT = 256
+_sha_memo: dict[tuple[Path, int, int], str] = {}
+
+
+def _current_sha(job: TranscribeJob, current: Transcript) -> str:
+    """The audio's sha256, remembered per (path, size, mtime) so a read-only view hashes a file once."""
+    size, mtime_ns = file_stamp(job.audio).content
+    if current.audio_sha256 and (current.audio_size, current.audio_mtime_ns) == (size, mtime_ns):
+        return current.audio_sha256
+    key = (job.audio, size, mtime_ns)
+    sha = _sha_memo.get(key)
+    if sha is None:
+        sha = sha256_file(job.audio)
+        if len(_sha_memo) >= _SHA_MEMO_LIMIT:
+            _sha_memo.pop(next(iter(_sha_memo)))
+        _sha_memo[key] = sha
+    return sha
+
+
 def track_is_transcribed(project: EpisodeProject, track_id: str) -> bool:
     """Whether a stored transcript, even one with no words, belongs to the track's current audio."""
     track = project.track_by_id(track_id)
@@ -107,11 +127,13 @@ def track_is_transcribed(project: EpisodeProject, track_id: str) -> bool:
         return False
     if current.audio_sha256 is None and not current.words:
         return False
-    job = TranscribeJob(track_id, None, resolve_under_workspace(project, track.media.path))
-    if not job.audio.is_file():
+    try:
+        job = TranscribeJob(track_id, None, resolve_under_workspace(project, track.media.path))
+        if not job.audio.is_file():
+            return False
+        return _audio_matches(project, job, current, _current_sha(job, current))
+    except (ValueError, OSError):
         return False
-    sha, _ = audio_identity(job, current)
-    return _audio_matches(project, job, current, sha)
 
 
 def language_changed(recorded: str | None, requested: str | None) -> bool:
