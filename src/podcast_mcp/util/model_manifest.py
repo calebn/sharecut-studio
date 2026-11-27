@@ -59,6 +59,12 @@ _NO_FALLBACK_KINDS = frozenset({"http", "disk"})
 failure the child marks ``xet`` falls back; a plain network error never does, so an unreachable
 hub is not waited on twice."""
 
+FALLBACK_NOTICE = (
+    "the fast transfer failed, so it is retrying over the standard connection, which is slower."
+)
+"""Shown to the person when a Xet failure sends a download to plain HTTP: plain text, no path,
+URL or setting name. The caller puts the model's name in front."""
+
 FileManifest = tuple[tuple[str, str], ...]
 """(path relative to the snapshot root, sha256 hex) for every pinned file."""
 
@@ -661,6 +667,7 @@ def download_pinned_snapshot(
     *,
     force: bool = False,
     on_progress: OnProgress | None = None,
+    on_notice: Callable[[str], None] | None = None,
 ) -> tuple[Path, str | None]:
     """Download ``pin`` into ``cache_dir`` and verify every file uncached.
 
@@ -673,6 +680,9 @@ def download_pinned_snapshot(
 
     ``on_progress`` gets absolute byte counts against a total from a dry run first; the
     refetch starts again at zero. It may raise to stop the download.
+
+    ``on_notice`` gets ``FALLBACK_NOTICE`` once, when a Xet failure moves the download to plain
+    HTTP (a refetch in the same call does not repeat it). It must be thread-safe.
     """
     from huggingface_hub import snapshot_download
 
@@ -696,6 +706,8 @@ def download_pinned_snapshot(
                 return fetched
             if xet_failed:
                 child_failed_on_xet = True  # a force refetch must not spawn the child again
+                if on_notice is not None:
+                    on_notice(FALLBACK_NOTICE)
 
         def plain() -> Path:
             with _plain_http_hub():
@@ -710,9 +722,15 @@ def download_pinned_snapshot(
                     )
                 )
 
-        if report is not None:  # every plain-HTTP path honours Cancel, even on a paused hub
-            return _run_with_heartbeat(plain, report, stop)
-        return plain()
+        if report is None:
+            return plain()
+        # Every plain-HTTP path honours Cancel, even on a paused hub.
+        done = _run_with_heartbeat(plain, report, stop)
+        if (
+            total is not None
+        ):  # the hub skips blobs the child finished, so its own count falls short
+            report(DownloadProgress(total, total))
+        return done
 
     path = fetch(force)
     mismatch = manifest_mismatch(path, pin.file_sha256)
