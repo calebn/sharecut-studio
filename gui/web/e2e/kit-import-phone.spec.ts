@@ -292,8 +292,11 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
       page,
     }) => {
       const { mock, section } = await home(page);
-      // The Kits section is left out of Home while the library is empty; Import is still there.
-      await expect(page.getByRole("region", { name: "Kits" })).toHaveCount(0);
+      const kits = page.getByRole("region", { name: "Kits", exact: true });
+      await expect(kits.getByText("No kits yet.")).toBeVisible();
+      await expect(kits.getByRole("list", { name: "Saved kits" })).toHaveCount(
+        0,
+      );
       const file = kitFile("Show Kit", SEGMENTS);
 
       await chooseFile(page, "show-kit.sharecutkit", file);
@@ -343,7 +346,6 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
         page,
         "Added Show Kit to your library, with 2 new segments",
       );
-      const kits = page.getByRole("region", { name: "Kits" });
       await expect(kits).toBeVisible();
       await expect(
         kits.getByRole("list", { name: "Saved kits" }).getByRole("listitem"),
