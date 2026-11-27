@@ -11,7 +11,10 @@ import {
   TOUCH_SLOP_PX,
   withinGhostClick,
 } from "./gestureConstants";
-import { listenForInterrupt } from "./useInterruptCancel";
+import {
+  listenForDragInterrupt,
+  listenForInterrupt,
+} from "./useInterruptCancel";
 
 export type LongPressHandlers = {
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -143,7 +146,7 @@ export function useLongPress(
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", disarm);
       const stop = new AbortController();
-      listenForInterrupt(disarm, stop.signal);
+      listenForDragInterrupt(disarm, stop.signal);
       removeListenersRef.current = () => {
         stop.abort();
         window.removeEventListener("pointerdown", onDown, CAPTURE);

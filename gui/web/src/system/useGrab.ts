@@ -1,6 +1,6 @@
 import { type PointerEvent, useEffect, useLayoutEffect, useRef } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
-import { listenForInterrupt } from "../hooks/useInterruptCancel";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 import { useStableCallback } from "../utils/useStableCallback";
 import { capturePointer } from "./wavePointer";
 
@@ -167,7 +167,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
     stopWatching();
     const { signal } = (watching.current = new AbortController());
     listenForDragEscape(() => held.current?.moved === true, abort, signal);
-    listenForInterrupt(abort, signal);
+    listenForDragInterrupt(abort, signal);
     capturePointer(event);
   };
   const move = (event: PointerEvent<HTMLElement>) => {

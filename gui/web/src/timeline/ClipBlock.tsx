@@ -15,7 +15,7 @@ import {
   waveformTicksToTimeline,
 } from "../edit/clipMove";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
-import { listenForInterrupt } from "../hooks/useInterruptCancel";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 import { useSnapTicks, useSplitGuideOnClip } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -336,7 +336,7 @@ export function ClipBlockLive({
     };
     document.addEventListener("keydown", onOwnedKey, true);
     const interrupts = new AbortController();
-    listenForInterrupt(cancelBodyDrag, interrupts.signal);
+    listenForDragInterrupt(cancelBodyDrag, interrupts.signal);
     bodyMovedRef.current = false;
     bodyRef.current = {
       clip,
