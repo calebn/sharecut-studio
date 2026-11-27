@@ -315,6 +315,8 @@ The one Import button in the segment toolbar (`system/importSheet/BundleImportBu
 - A Studio screen or an "update this segment" command for drift, and the "newer version, Update or Keep" prompt (the report exists, see [Drift](#drift)). Ducking is built: `podcast edit duck`, `apply_ducking_tool` and Studio's "Duck music under speech" in the track inspector ([envelopes.md § Ducking](envelopes.md#ducking)); attack, hold and release have no Studio control.
 - A Studio screen to rename a segment, or to edit, pin the version of or rename a kit (Studio lists, auditions, removes, saves from a selection, inserts, exports and imports a segment file, and lists, saves, exports and imports kits, see [Studio](#studio) and [Kits section (web)](#kits-section-web)). Opening a `.sharecutseg` or `.sharecutkit` from a phone's share sheet as an installed app is not built either.
 - A compound document command that makes a whole kit one undo step.
+- Command-palette rows and keys for the library: no palette row for the library, and `segment.save` and `segment.insert` have no palette row and no key (`track.duckUnderSpeech` has a palette row).
+- "Used in N episodes" on a library row: the library records no usage.
 - Kit files under `podcast segment`: kits export and import with `podcast kit export` and `podcast kit import`, and `segment export` takes one id.
 - Library access for guests. The library is host only and no share role reaches it.
 - Pasting a clip from a saved segment.
