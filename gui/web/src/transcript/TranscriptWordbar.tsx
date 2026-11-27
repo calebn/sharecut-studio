@@ -14,6 +14,7 @@ import {
   saveWordTiming,
   type WordTimingContext,
 } from "../api/transcriptTiming";
+import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { ScrubField } from "../system/ScrubField";
@@ -221,12 +222,15 @@ function TimingEditor({
     stateRef.current = next;
     setState(next);
   };
+  useInterruptCancel(() => {
+    if (gesture.current) cancel();
+  });
   // Saves the draft as it stands: on release of a handle, or when a field commits.
   const save = async () => {
+    gesture.current = null;
     const latest = stateRef.current;
     if (latest.kind !== "ready" || busy.current || !valid()) return;
     stopPreview();
-    gesture.current = null;
     const minimum = latest.context.media.sample_rate
       ? 1 / latest.context.media.sample_rate
       : 0.001;

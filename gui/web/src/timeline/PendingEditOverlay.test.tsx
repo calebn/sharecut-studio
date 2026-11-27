@@ -7,7 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import {
@@ -38,6 +38,12 @@ import {
   clipRow,
   minimalProject,
 } from "../test/fixtures";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { decide } from "../test/pendingDecision";
 import type { PendingEditView } from "../types/project";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
@@ -1376,5 +1382,114 @@ describe("the pending-edit overlay carries no review bar", () => {
         expect(useDawStore.getState().pendingRetimeInFlight).toBeNull();
       },
     );
+  });
+});
+
+describe("PendingEditOverlayView and a page interrupt", () => {
+  beforeEach(() => {
+    vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+    useDawStore.setState({
+      stage: "review",
+      statusAnnouncement: "",
+      feedbackToast: null,
+      pendingRetimeInFlight: null,
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetViewport();
+  });
+
+  const mount = () => {
+    const onCommitSpan = vi.fn();
+    const view = render(
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        timelineWidthPx={1000}
+        selectedId="cut_1"
+        projectPath="/tmp/p.json"
+        clipsByTrack={{}}
+        canAdjust
+        onSelect={vi.fn()}
+        onCommitSpan={onCommitSpan}
+      />,
+    );
+    const end = view.container.querySelector(
+      ".pending-handle.end",
+    ) as HTMLElement;
+    const width = () =>
+      (view.container.querySelector(".pending-overlay") as HTMLElement).style
+        .width;
+    return { ...view, onCommitSpan, end, width };
+  };
+  const drag = (end: HTMLElement) => {
+    fireEvent.pointerDown(end, { clientX: 100, pointerId: 31 });
+    fireEvent.pointerMove(end, { clientX: 130, pointerId: 31 });
+  };
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s drops the drag with no commit, and a later release does nothing",
+    async (_name, interrupt) => {
+      const { end, width, onCommitSpan } = mount();
+      const resting = width();
+      drag(end);
+      expect(width()).not.toBe(resting);
+      interrupt();
+      expect(width()).toBe(resting);
+      fireEvent.pointerUp(end, { clientX: 130, pointerId: 31 });
+      await act(async () => undefined);
+      expect(onCommitSpan).not.toHaveBeenCalled();
+      expect(useDawStore.getState().pendingRetimeInFlight).toBeNull();
+    },
+  );
+
+  it("keeps the drag through a height-only resize", async () => {
+    const { end, onCommitSpan } = mount();
+    drag(end);
+    pageRotations.heightResize();
+    fireEvent.pointerUp(end, { clientX: 130, pointerId: 31 });
+    await waitFor(() => expect(onCommitSpan).toHaveBeenCalledOnce());
+  });
+
+  it.each(Object.entries(dragInterrupts))(
+    "a %s after the release leaves the commit in flight",
+    async (_name, interrupt) => {
+      const pending = deferred<number[]>();
+      useDawStore.setState({ snapEnabled: true });
+      vi.mocked(useWaveformSnapTicks).mockReturnValue({
+        ticks: [],
+        resolveTicks: vi.fn(() => pending.promise),
+      });
+      const { end, onCommitSpan } = mount();
+      drag(end);
+      fireEvent.pointerUp(end, { clientX: 130, pointerId: 31 });
+      expect(useDawStore.getState().pendingRetimeInFlight).toBe("cut_1");
+      interrupt();
+      await act(async () => pending.resolve([]));
+      await waitFor(() => expect(onCommitSpan).toHaveBeenCalledOnce());
+    },
+  );
+
+  it("commits once on a normal release and leaves no live listeners", async () => {
+    const tracked = trackInterruptSignals();
+    let idle = -1;
+    const { end, onCommitSpan } = (() => {
+      const view = mount();
+      idle = tracked.live();
+      return view;
+    })();
+    drag(end);
+    expect(tracked.live()).toBeGreaterThan(idle);
+    fireEvent.pointerUp(end, { clientX: 130, pointerId: 31 });
+    await waitFor(() => expect(onCommitSpan).toHaveBeenCalledOnce());
+    expect(tracked.live()).toBe(idle);
+    dragInterrupts.blur();
+    expect(onCommitSpan).toHaveBeenCalledOnce();
   });
 });
