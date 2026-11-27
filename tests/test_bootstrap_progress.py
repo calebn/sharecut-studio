@@ -1298,7 +1298,7 @@ def test_the_fallback_notice_is_a_message_event_and_a_result_field(clock: None) 
     def install(variant, force, on_progress):
         on_progress(DownloadProgress(0, 10))
         worker = threading.Thread(target=on_progress.notice, args=(FALLBACK_NOTICE,))
-        worker.start()  # the hub's fallback thread
+        worker.start()  # production calls it on the install thread; a thread proves the lock is safe
         worker.join()
         on_progress(DownloadProgress(10, 10))
         return {"ok": True, "path": "/stub"}

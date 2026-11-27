@@ -221,8 +221,8 @@ class _ByteRelay:
     def notice(self, text: str) -> None:
         """Tell every progress consumer why the download changed course, once per install.
 
-        Called on the thread that runs the download, which may be the hub's fallback worker, so
-        it takes the same lock as a tick. The text is kept for ``install_model``'s result.
+        Called on the install thread (the caller of the download), not the fallback worker; the
+        lock is the one a tick takes, so a ticking thread cannot interleave with it. The text is kept for ``install_model``'s result.
         """
         with self._lock:
             if self.notice_text is not None:
