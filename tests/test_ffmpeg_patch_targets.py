@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import ast
 import functools
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
@@ -79,10 +80,10 @@ def _target(segments: list[str]) -> tuple[str, str | None]:
     return name, member
 
 
-def _imports(tree: ast.AST) -> dict[str, str]:
+def _imports(nodes: Iterable[ast.AST]) -> dict[str, str]:
     """The dotted module path each imported name denotes (``import a.b`` binds ``a``)."""
     names: dict[str, str] = {}
-    for node in ast.walk(tree):
+    for node in nodes:
         if isinstance(node, ast.ImportFrom) and node.module and not node.level:
             for alias in node.names:
                 names[alias.asname or alias.name] = f"{node.module}.{alias.name}"
@@ -166,15 +167,20 @@ def _registry_form(text: str) -> bool:
 
 
 def _found_in(source: str) -> set[tuple[str, str | None]]:
-    tree = ast.parse(source)
-    imports = _imports(tree)
+    import_nodes: list[ast.AST] = []
+    patch_calls: list[ast.Call] = []
     found: set[tuple[str, str | None]] = set()
-    for node in ast.walk(tree):
+    for node in ast.walk(ast.parse(source)):
         text = _text(node) if isinstance(node, ast.Constant) else None
         if text is not None and text.startswith(MODULE + ".") and not _registry_form(text):
             found.add(_target(text[len(MODULE) + 1 :].replace(":", ".").split(".")))
-        elif isinstance(node, ast.Call):
-            found |= _call_targets(node, imports)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            import_nodes.append(node)
+        elif isinstance(node, ast.Call) and _call_name(node.func) in PATCHERS:
+            patch_calls.append(node)
+    imports = _imports(import_nodes)
+    for call in patch_calls:
+        found |= _call_targets(call, imports)
     return found
 
 
@@ -331,7 +337,7 @@ def _seam_value_uses(tree: ast.Module) -> list[int]:
 
 def _direct_process_uses(tree: ast.Module) -> list[int]:
     """Lines that read ``run`` or ``popen`` off ``podcast_mcp.util.process`` under any import spelling."""
-    imports = _imports(tree)
+    imports = _imports(ast.walk(tree))
     lines: list[int] = []
     for node in ast.walk(tree):
         if (
