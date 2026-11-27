@@ -280,7 +280,11 @@ def test_tauri_production_window_waits_on_splash() -> None:
     main_rs = (ROOT / "gui/desktop/src-tauri/src/main.rs").read_text(encoding="utf-8")
     engine_rs = (ROOT / "gui/desktop/src-tauri/src/engine.rs").read_text(encoding="utf-8")
     assert "window.location.replace('http://127.0.0.1:8765/')" not in main_rs
-    assert "window.location.replace('http://127.0.0.1:{port}/')" in main_rs
+    assert "sharecut::project_file::engine_url(port, project.as_deref())" in main_rs
+    assert 'format!("window.location.replace({target})")' in main_rs
+    assert "http://127.0.0.1:{port}/" in (
+        ROOT / "gui/desktop/src-tauri/src/project_file.rs"
+    ).read_text(encoding="utf-8")
     assert "sidecar_owns_listen" in main_rs
     assert "X-Sharecut-Boot-Token" in engine_rs
     assert "PODCAST_SIDECAR_BOOT_TOKEN" in engine_rs
