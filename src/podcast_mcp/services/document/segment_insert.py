@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 
 from podcast_mcp.edits.segment_insert import (
@@ -40,7 +41,7 @@ def _mismatch(segment: SegmentFile, name: str) -> CodedValueError:
 
 def copy_segment_audio(
     workspace_dir: Path, segment: SegmentFile, folder: Path
-) -> dict[str, SegmentAudio]:
+) -> Mapping[str, SegmentAudio]:
     """Copy each audio file of a stored segment into ``raw/`` and check the copy's hash.
 
     The name is the content hash, so inserting the same segment twice stores its audio once.
