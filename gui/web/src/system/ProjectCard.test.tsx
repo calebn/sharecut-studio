@@ -6,7 +6,13 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { ProjectCardList } from "./ProjectCard";
 import { MISSING, PROJECTS } from "./projectCardFixtures";
 
@@ -298,6 +304,69 @@ describe("ProjectCardList actions", () => {
       swipe(cards[0], -80);
       expect(row).toHaveAttribute("data-revealed", "true");
       expect(remove).toHaveAttribute("tabindex", "0");
+    });
+
+    describe("a page interrupt mid-swipe", () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+        resetViewport();
+      });
+
+      const at = (x: number) => ({
+        pointerId: 1,
+        pointerType: "touch",
+        isPrimary: true,
+        clientX: x,
+        clientY: 10,
+      });
+
+      const hold = (before?: () => void) => {
+        const view = withActions(PROJECTS, "row");
+        before?.();
+        const remove = screen.getAllByText("Remove from list", {
+          selector: "button",
+        })[0];
+        vi.spyOn(remove, "offsetWidth", "get").mockReturnValue(96);
+        const card = view.cards[0];
+        const slide = card.closest(".sys-project-slide") as HTMLElement;
+        const row = card.closest(".sys-project") as HTMLElement;
+        fireEvent.pointerDown(slide, at(200));
+        fireEvent.pointerMove(slide, at(120));
+        return { ...view, slide, row };
+      };
+
+      it.each(Object.entries(dragInterrupts))(
+        "%s drops the swipe without revealing, and the next click opens the row",
+        (_name, interrupt) => {
+          const { cards, onOpen, slide, row } = hold();
+          expect(slide).toHaveAttribute("data-dragging", "true");
+          interrupt();
+          expect(slide).not.toHaveAttribute("data-dragging");
+          fireEvent.pointerUp(slide, at(120));
+          expect(row).not.toHaveAttribute("data-revealed");
+          fireEvent.click(cards[0]);
+          expect(onOpen).toHaveBeenCalledOnce();
+        },
+      );
+
+      it("keeps the swipe through a height-only resize", () => {
+        const { slide, row } = hold();
+        pageRotations.heightResize();
+        fireEvent.pointerUp(slide, at(120));
+        expect(row).toHaveAttribute("data-revealed", "true");
+      });
+
+      it("reveals once on a normal release and leaves no live listeners", () => {
+        const tracked = trackInterruptSignals();
+        let idle = -1;
+        const { slide, row } = hold(() => {
+          idle = tracked.live();
+        });
+        expect(tracked.live()).toBeGreaterThan(idle);
+        fireEvent.pointerUp(slide, at(120));
+        expect(row).toHaveAttribute("data-revealed", "true");
+        expect(tracked.live()).toBe(idle);
+      });
     });
 
     it("removes the row from the revealed button and does not open it", async () => {

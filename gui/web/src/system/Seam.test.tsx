@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { Seam } from "./Seam";
 
 const cut = {
@@ -533,5 +539,71 @@ describe("Seam diamond rolling", () => {
   it("marks its button with the host's data attributes", () => {
     render(<Seam {...diamond} hit={{ "data-hit-kind": "roll" }} />);
     expect(hit()).toHaveAttribute("data-hit-kind", "roll");
+  });
+});
+
+describe("Seam rolling and a page interrupt", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetViewport();
+  });
+
+  const roll = () => ({
+    limits: () => ({ minMs: -500, maxMs: 500 }),
+    pxPerSec: 100,
+    onCommit: vi.fn(),
+    onPreview: vi.fn(),
+  });
+  const seam = {
+    form: "diamond",
+    kind: "split",
+    label: "Split at 0:05.0",
+  } as const;
+
+  const hold = (before?: () => void) => {
+    const rolled = roll();
+    const onSelect = vi.fn();
+    const view = render(<Seam {...seam} onSelect={onSelect} roll={rolled} />);
+    before?.();
+    const hit = screen.getByRole("button");
+    fireEvent.pointerDown(hit, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(hit, { pointerId: 1, clientX: 120 });
+    return { ...view, hit, rolled, onSelect };
+  };
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s drops the roll with no save, and the next click still selects",
+    (_name, interrupt) => {
+      const { container, hit, rolled, onSelect } = hold();
+      expect(container.querySelector(".sys-seam-readout")).not.toBeNull();
+      interrupt();
+      expect(container.querySelector(".sys-seam-readout")).toBeNull();
+      expect(rolled.onPreview).toHaveBeenLastCalledWith(null);
+      fireEvent.pointerUp(hit, { pointerId: 1 });
+      expect(rolled.onCommit).not.toHaveBeenCalled();
+      fireEvent.click(hit);
+      expect(onSelect).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("keeps the roll through a height-only resize", () => {
+    const { hit, rolled } = hold();
+    pageRotations.heightResize();
+    fireEvent.pointerUp(hit, { pointerId: 1 });
+    expect(rolled.onCommit).toHaveBeenCalledExactlyOnceWith(200);
+  });
+
+  it("saves once on a normal release and leaves no live listeners", () => {
+    const tracked = trackInterruptSignals();
+    let idle = -1;
+    const { hit, rolled } = hold(() => {
+      idle = tracked.live();
+    });
+    expect(tracked.live()).toBeGreaterThan(idle);
+    fireEvent.pointerUp(hit, { pointerId: 1 });
+    expect(rolled.onCommit).toHaveBeenCalledExactlyOnceWith(200);
+    expect(tracked.live()).toBe(idle);
+    dragInterrupts.blur();
+    expect(rolled.onCommit).toHaveBeenCalledOnce();
   });
 });

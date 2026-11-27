@@ -2,6 +2,12 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../../test/pageInterrupts";
 import { session } from "./prepareFixture";
 import type { PrepareSource, SourceActions } from "./prepareTypes";
 import { SessionSources } from "./SessionSources";
@@ -391,6 +397,58 @@ describe("dragging a card to reorder", () => {
     fireEvent.pointerUp(grip, { pointerId: 1, clientY: 150 });
     expect(handlers.onReorder).not.toHaveBeenCalled();
     expect(view.container.querySelector("[data-reordering]")).toBeNull();
+  });
+
+  describe("a page interrupt mid-drag", () => {
+    afterEach(resetViewport);
+
+    const startDrag = (handlers: SourceActions) => {
+      layout();
+      const view = renderThree(handlers);
+      const grip = grips(view.container)[0]!;
+      fireEvent.pointerDown(grip, { pointerId: 1, clientY: 40, button: 0 });
+      fireEvent.pointerMove(grip, { pointerId: 1, clientY: 150 });
+      return { ...view, grip };
+    };
+
+    it.each(Object.entries(dragInterrupts))(
+      "%s drops the drag with no reorder, and a later release does nothing",
+      (_name, interrupt) => {
+        const handlers = actions();
+        const { container, grip } = startDrag(handlers);
+        interrupt();
+        expect(container.querySelector("[data-reordering]")).toBeNull();
+        expect(
+          container
+            .querySelector<HTMLElement>("[data-source-id]")!
+            .style.getPropertyValue("--sys-source-shift"),
+        ).toBe("");
+        fireEvent.pointerUp(grip, { pointerId: 1, clientY: 150 });
+        expect(handlers.onReorder).not.toHaveBeenCalled();
+      },
+    );
+
+    it("keeps the drag through a height-only resize", () => {
+      const handlers = actions();
+      const { container, grip } = startDrag(handlers);
+      pageRotations.heightResize();
+      expect(container.querySelector("[data-reordering]")).not.toBeNull();
+      fireEvent.pointerUp(grip, { pointerId: 1, clientY: 150 });
+      expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("a", "b");
+    });
+
+    it("commits once on a normal release and leaves no live listeners", () => {
+      const tracked = trackInterruptSignals();
+      const handlers = actions();
+      const { grip } = startDrag(handlers);
+      expect(tracked.registered()).toBeGreaterThan(0);
+      expect(tracked.live()).toBeGreaterThan(0);
+      fireEvent.pointerUp(grip, { pointerId: 1, clientY: 150 });
+      expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("a", "b");
+      expect(tracked.live()).toBe(0);
+      dragInterrupts.blur();
+      expect(handlers.onReorder).toHaveBeenCalledOnce();
+    });
   });
 
   it("has no axe violations with grips on the cards", async () => {

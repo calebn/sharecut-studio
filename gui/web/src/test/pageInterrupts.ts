@@ -42,3 +42,29 @@ export function resetViewport() {
   if (viewport.height)
     Object.defineProperty(window, "innerHeight", viewport.height);
 }
+
+export const dragInterrupts = {
+  ...pageInterrupts,
+  widthResize: pageRotations.widthResize,
+  orientationchange: pageRotations.orientationchange,
+};
+
+export function trackInterruptSignals() {
+  const signals: AbortSignal[] = [];
+  const add = window.addEventListener.bind(window);
+  vi.spyOn(window, "addEventListener").mockImplementation(
+    (type: string, listener: unknown, options?: unknown) => {
+      const signal = (options as AddEventListenerOptions | undefined)?.signal;
+      if (
+        signal &&
+        ["blur", "pagehide", "resize", "orientationchange"].includes(type)
+      )
+        signals.push(signal);
+      add(type, listener as EventListener, options as AddEventListenerOptions);
+    },
+  );
+  return {
+    registered: () => signals.length,
+    live: () => signals.filter((signal) => !signal.aborted).length,
+  };
+}

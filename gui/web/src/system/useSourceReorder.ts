@@ -1,4 +1,5 @@
 import { type PointerEvent, useEffect, useRef } from "react";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 
 const SHIFT = "--sys-source-shift";
 
@@ -101,6 +102,8 @@ export function useSourceReorder(
         if (key.key === "Escape") end(false);
       };
       window.addEventListener("keydown", onKey);
+      const watch = new AbortController();
+      listenForDragInterrupt(() => end(false), watch.signal);
       gesture.current = {
         id,
         pointerId: event.pointerId,
@@ -114,6 +117,7 @@ export function useSourceReorder(
         stride: rects[from]!.height + Math.max(0, gap),
         release: () => {
           window.removeEventListener("keydown", onKey);
+          watch.abort();
           if (grip.hasPointerCapture?.(event.pointerId))
             grip.releasePointerCapture(event.pointerId);
         },

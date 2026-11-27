@@ -10,8 +10,14 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Profiler, StrictMode, useLayoutEffect, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { stubRaf } from "../test/raf";
 import { BottomSheet } from "./BottomSheet";
 import { Dialog } from "./Dialog";
@@ -427,6 +433,74 @@ describe("BottomSheet", () => {
         restore();
         vi.unstubAllGlobals();
       }
+    });
+
+    describe("a page interrupt mid-swipe", () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+        resetViewport();
+      });
+
+      const dragUp = (raf: ReturnType<typeof stubRaf>) => {
+        render(<Drawer />);
+        press(500, 1000);
+        move(420, 1200);
+        move(340, 1400);
+        raf.fire(1401);
+      };
+
+      it.each(Object.entries(dragInterrupts))(
+        "%s snaps the sheet back to its detent, and a later release does nothing",
+        (_name, interrupt) => {
+          const raf = stubRaf();
+          const restore = layOut();
+          try {
+            dragUp(raf);
+            expect(dialog().style.transform).toBe("translateY(340px)");
+            interrupt();
+            raf.fire(1450);
+            expect(dialog().style.transform).toBe("");
+            expect(dialog()).toHaveClass("bottom-sheet--peek");
+            lift(340, 1500);
+            raf.fire(1550);
+            expect(dialog()).toHaveClass("bottom-sheet--peek");
+            expect(dialog().style.transform).toBe("");
+          } finally {
+            restore();
+            vi.unstubAllGlobals();
+          }
+        },
+      );
+
+      it("keeps the swipe through a height-only resize", () => {
+        const raf = stubRaf();
+        const restore = layOut();
+        try {
+          dragUp(raf);
+          pageRotations.heightResize();
+          lift(340, 2900);
+          expect(dialog()).not.toHaveClass("bottom-sheet--peek");
+        } finally {
+          restore();
+          vi.unstubAllGlobals();
+        }
+      });
+
+      it("settles once on a normal release and leaves no live listeners", () => {
+        const raf = stubRaf();
+        const restore = layOut();
+        try {
+          const tracked = trackInterruptSignals();
+          dragUp(raf);
+          expect(tracked.registered()).toBeGreaterThan(0);
+          lift(340, 2900);
+          expect(dialog()).not.toHaveClass("bottom-sheet--peek");
+          expect(tracked.live()).toBe(0);
+        } finally {
+          restore();
+          vi.unstubAllGlobals();
+        }
+      });
     });
 
     it("drops a swipe a second finger joins", () => {
