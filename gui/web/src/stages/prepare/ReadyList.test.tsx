@@ -33,17 +33,49 @@ function settle(
 }
 
 describe("ReadyList", () => {
-  it("draws the idle Start as the filled primary and every other row action outlined", () => {
+  it("draws the Start row as the filled primary", () => {
     render(<ReadyList rows={ROWS.notStarted} onAction={vi.fn()} />);
     expect(
       screen.getByRole("button", { name: "Start, Transcribe" }),
     ).toHaveClass("primary");
-    render(<ReadyList rows={ROWS.plan} onAction={vi.fn()} />, {
-      container: document.body.appendChild(document.createElement("div")),
-    });
-    for (const button of screen.getAllByRole("button", { name: /^Skip/ })) {
-      expect(button).not.toHaveClass("primary");
-    }
+  });
+
+  it.each([
+    "hear",
+    "looks-right",
+    "undo-move",
+    "keep-fixes",
+    "replace",
+    "skip",
+    "include",
+  ] as const)("draws a queued %s action outlined", (run) => {
+    const rows: ReadyRowData[] = [
+      {
+        id: "transcribe",
+        state: "queued",
+        title: "Transcribe",
+        action: { label: "Act", run },
+      },
+    ];
+    render(<ReadyList rows={rows} onAction={vi.fn()} />);
+    expect(
+      screen.getByRole("button", { name: "Act, Transcribe" }),
+    ).not.toHaveClass("primary");
+  });
+
+  it("draws Try again outlined on a row that is not queued", () => {
+    const rows: ReadyRowData[] = [
+      {
+        id: "transcribe",
+        state: "needs-you",
+        title: "Transcribe",
+        action: { label: "Run", run: "try-again" },
+      },
+    ];
+    render(<ReadyList rows={rows} onAction={vi.fn()} />);
+    expect(
+      screen.getByRole("button", { name: "Run, Transcribe" }),
+    ).not.toHaveClass("primary");
   });
 
   it("opens the engine text of a done row behind its Details button", async () => {

@@ -62,6 +62,11 @@ export type ReadyRowData = {
   modelGetAction?: "get-word-timing";
 };
 
+/** The queued row whose button starts the run: the one step to take before anything runs. */
+export function isStartRow(row: ReadyRowData): boolean {
+  return row.state === "queued" && row.action?.run === "try-again";
+}
+
 type ReadyListProps = {
   rows: readonly ReadyRowData[];
   onAction: (...args: ReadyActionArgs) => void;
@@ -174,8 +179,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
                     name: `${action.label}, ${row.title}`,
                     icon: action.icon,
                     onAction: () => onAction(row.id, action.run),
-                    primary:
-                      row.state === "queued" && action.run === "try-again",
+                    primary: isStartRow(row),
                   }
                 : undefined
             }

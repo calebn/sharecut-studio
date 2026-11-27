@@ -29,7 +29,7 @@ export type StatusRowProps = {
     icon?: SystemIconName;
     onAction: () => void;
     disabledReason?: string;
-    /** Draw it filled, as a failed row's action is, for the one step the person should take. */
+    /** Draw the action filled, for the one step to take. */
     primary?: boolean;
   };
   /** A quieter action beside the main one, such as Save a copy next to Resume saving. */

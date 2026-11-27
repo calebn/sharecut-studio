@@ -774,7 +774,7 @@ describe("PrepareView focus", () => {
       );
     });
 
-    it("keeps a manual close", async () => {
+    it("keeps a manual close within one visit", async () => {
       atWidth(PHONE_WIDTH);
       const user = userEvent.setup();
       const { rerender } = render(<PrepareView {...idle()} />);
@@ -799,7 +799,7 @@ describe("PrepareView focus", () => {
       );
     });
 
-    it("does not reopen a closed list when Start resolves and the view rerenders", async () => {
+    it("does not reopen a closed list when Start resolves within the same visit", async () => {
       atWidth(PHONE_WIDTH);
       const user = userEvent.setup();
       const { rerender } = render(<PrepareView {...idle()} />);
@@ -817,6 +817,48 @@ describe("PrepareView focus", () => {
       render(
         <PrepareView {...props({ phase: "not-started", rows: ROWS.queued })} />,
       );
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("opens again on a remount, as a stage switch does", async () => {
+      atWidth(PHONE_WIDTH);
+      const user = userEvent.setup();
+      const first = render(<PrepareView {...idle()} />);
+      await user.click(screen.getByRole("button", { name: SUMMARY }));
+      first.unmount();
+      render(<PrepareView {...idle()} />);
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+    });
+
+    it("leaves a busy import shut, where no row offers Start", () => {
+      atWidth(PHONE_WIDTH);
+      const rows = ROWS.notStarted.map((row) => ({
+        ...row,
+        action: undefined,
+      }));
+      render(
+        <PrepareView {...props({ phase: "adding", addCount: 3, rows })} />,
+      );
+      expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("leaves a not-started run whose only actions are Skip shut", () => {
+      atWidth(PHONE_WIDTH);
+      const rows = ROWS.notStarted.map((row) =>
+        row.id === "transcribe"
+          ? { ...row, action: { label: "Skip", run: "skip" as const } }
+          : row,
+      );
+      render(<PrepareView {...props({ phase: "not-started", rows })} />);
       expect(screen.getByRole("button", { name: SUMMARY })).toHaveAttribute(
         "aria-expanded",
         "false",

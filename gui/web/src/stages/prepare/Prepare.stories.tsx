@@ -490,14 +490,13 @@ export const PhoneNotStarted: Story = {
   render: live,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    if (canvasElement.getBoundingClientRect().width === 0) return;
-    const heading = canvas.getAllByRole("heading", { level: 2 })[0];
-    await expect(
-      within(heading).getByRole("button", { name: /Getting ready/ }),
-    ).toHaveAttribute("aria-expanded", "true");
     await expect(
       canvas.getByRole("button", { name: "Start, Transcribe" }),
     ).toBeVisible();
+    if (canvasElement.getBoundingClientRect().width === 0) return;
+    await expect(
+      canvas.getByRole("button", { name: /Getting ready/ }),
+    ).toHaveAttribute("aria-expanded", "true");
   },
 };
 

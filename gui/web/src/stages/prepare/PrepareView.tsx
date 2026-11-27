@@ -20,6 +20,7 @@ import { useResizeObserver } from "../../ui/useResizeObserver";
 import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 import {
+  isStartRow,
   type ReadyActionArgs,
   ReadyList,
   type ReadyRowData,
@@ -175,7 +176,7 @@ export function PrepareView({
   // failed has a button the person must reach, so the summary opens when one
   // is there at the start or turns up later. A run that has not started opens
   // it too, at mount only, so Start is in reach. Closing it by hand sticks
-  // until another row needs attention.
+  // for the visit, until another row needs attention.
   const attention = rows
     .filter((row) => row.state === "failed" || row.state === "needs-you")
     .map((row) => row.id);
@@ -190,12 +191,10 @@ export function PrepareView({
     }
     onRowAction(...args);
   };
-  const idle =
-    phase === "not-started" &&
-    rows.some(
-      (row) => row.state === "queued" && row.action?.run === "try-again",
-    );
-  const [readyOpen, setReadyOpen] = useState(attention.length > 0 || idle);
+  const notStarted = phase === "not-started" && rows.some(isStartRow);
+  const [readyOpen, setReadyOpen] = useState(
+    attention.length > 0 || notStarted,
+  );
   const [seen, setSeen] = useState(attention);
   if (attention.join() !== seen.join()) {
     setSeen(attention);
