@@ -14,7 +14,7 @@ import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
 import type { HistoryEntryId } from "../types/project";
 import { formatIngestDuration } from "../utils/time";
-import { trackHasMedia } from "./dropLabels";
+import { isAudioIngestFile, trackHasMedia } from "./dropLabels";
 
 /** Imports under way: busy ends when the last one settles, not the first. */
 let imports = 0;
@@ -142,6 +142,14 @@ function announceImportResult(
   }
 }
 
+function refusalLine(refused: readonly File[]): string {
+  const subject =
+    refused.length === 1
+      ? `${refused[0]!.name} is not an audio file.`
+      : `${refused.length} of those files are not audio.`;
+  return `${subject} WAV, MP3, M4A, FLAC, AIFF and OGG work.`;
+}
+
 export async function ingestFiles(
   files: File[],
   target: IngestTarget,
@@ -152,7 +160,12 @@ export async function ingestFiles(
     return;
   }
 
-  const list = [...files];
+  const refused = files.filter((file) => !isAudioIngestFile(file));
+  const list = files.filter(isAudioIngestFile);
+  if (list.length === 0) {
+    s.announceStatus(refusalLine(refused), { tone: "error" });
+    return;
+  }
   const ingestTarget: IngestTarget =
     target.kind === "track"
       ? { kind: "track", id: target.id }
@@ -235,6 +248,14 @@ export async function ingestFiles(
     await enqueueReplacement(projectPath, ingestTarget.id, run);
   } else {
     await run(false);
+  }
+  if (
+    refused.length > 0 &&
+    useDawStore.getState().projectPath === projectPath
+  ) {
+    useDawStore
+      .getState()
+      .announceStatus(refusalLine(refused), { tone: "error" });
   }
 }
 
