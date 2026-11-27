@@ -2,8 +2,10 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  useEffect,
   useRef,
 } from "react";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 import type { TimeRange } from "./seconds";
@@ -47,8 +49,26 @@ export function SuggestionWaveform({
   label = "Waveform around the change",
 }: SuggestionWaveformProps) {
   const track = useRef<HTMLDivElement>(null);
-  const dragging = useRef<Edge | null>(null);
+  const dragging = useRef<{ edge: Edge; from: TimeRange } | null>(null);
   const started = useRef(false);
+  const watch = useRef<AbortController | null>(null);
+  const unwatch = () => {
+    watch.current?.abort();
+    watch.current = null;
+  };
+  const latest = useRef(onAdjust);
+  useEffect(() => {
+    latest.current = onAdjust;
+  });
+  const restore = () => {
+    const drag = dragging.current;
+    if (!drag) return;
+    dragging.current = null;
+    unwatch();
+    if (started.current) latest.current?.(drag.from);
+    started.current = false;
+  };
+  useEffect(() => unwatch, []);
   const bounds: TimeRange = {
     start: windowStart,
     end: windowStart + WAVEFORM_WINDOW_S,
@@ -69,12 +89,15 @@ export function SuggestionWaveform({
 
   const onDown = (edge: Edge) => (event: PointerEvent<HTMLElement>) => {
     if (readOnly) return;
-    dragging.current = edge;
+    dragging.current = { edge, from: { start, end } };
     started.current = false;
     capturePointer(event);
+    unwatch();
+    watch.current = new AbortController();
+    listenForDragInterrupt(() => restore(), watch.current.signal);
   };
   const onMove = (event: PointerEvent<HTMLElement>) => {
-    const edge = dragging.current;
+    const edge = dragging.current?.edge;
     if (!edge) return;
     if (!started.current) {
       started.current = true;
@@ -84,6 +107,7 @@ export function SuggestionWaveform({
   };
   const onUp = () => {
     dragging.current = null;
+    unwatch();
   };
   const onKey = (edge: Edge) => (event: KeyboardEvent<HTMLElement>) => {
     const current = edge === "start" ? start : end;
