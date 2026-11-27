@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loadWordTimingContext,
   saveWordTiming,
@@ -20,6 +20,12 @@ import {
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import {
+  dragInterrupts,
+  pageRotations,
+  resetViewport,
+  trackInterruptSignals,
+} from "../test/pageInterrupts";
 import { WaveformLayer } from "../timeline/WaveformLayer";
 import { TranscriptWordbar } from "./TranscriptWordbar";
 
@@ -198,6 +204,75 @@ it.each(["pointerCancel", "escape"])(
     expect(saveWordTiming).not.toHaveBeenCalled();
   },
 );
+describe("a page interrupt mid-drag", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetViewport();
+  });
+  const valueNow = () =>
+    screen
+      .getByRole("spinbutton", { name: "Word start" })
+      .getAttribute("aria-valuenow");
+  const drag = async () => {
+    setup();
+    await ready();
+    sizeWaveform();
+    fireEvent.pointerDown(handle("start"), { pointerId: 1 });
+    fireEvent.pointerMove(handle("start"), { pointerId: 1, clientX: 120 });
+    expect(valueNow()).toBe("2.2");
+  };
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s restores the saved bounds without writing, and a later release does nothing",
+    async (_name, interrupt) => {
+      await drag();
+      interrupt();
+      expect(valueNow()).toBe("2");
+      fireEvent.pointerUp(handle("start"), { pointerId: 1 });
+      expect(valueNow()).toBe("2");
+      expect(saveWordTiming).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the drag through a height-only resize", async () => {
+    await drag();
+    pageRotations.heightResize();
+    expect(valueNow()).toBe("2.2");
+    fireEvent.pointerUp(handle("start"), { pointerId: 1 });
+    await waitFor(() => expect(saveWordTiming).toHaveBeenCalledTimes(1));
+  });
+
+  it("saves once on a normal release, and an interrupt after it reverts nothing", async () => {
+    const tracked = trackInterruptSignals();
+    await drag();
+    fireEvent.pointerUp(handle("start"), { pointerId: 1 });
+    dragInterrupts.blur();
+    await waitFor(() => expect(saveWordTiming).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(valueNow()).toBe("2.2"));
+    expect(tracked.registered()).toBeGreaterThan(0);
+  });
+
+  it("an interrupt after a release the busy guard refused does not revert the drag", async () => {
+    let finish!: (value: { changed: true; server_seq: number }) => void;
+    vi.mocked(saveWordTiming).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve as typeof finish;
+        }),
+    );
+    await drag();
+    fireEvent.pointerUp(handle("start"), { pointerId: 1 });
+    await waitFor(() => expect(saveWordTiming).toHaveBeenCalledTimes(1));
+    fireEvent.pointerDown(handle("end"), { pointerId: 2 });
+    fireEvent.pointerUp(handle("end"), { pointerId: 2 });
+    dragInterrupts.blur();
+    await act(async () =>
+      finish({ changed: true, server_seq: currentDocumentSeq() }),
+    );
+    await waitFor(() => expect(valueNow()).toBe("2.2"));
+    expect(saveWordTiming).toHaveBeenCalledTimes(1);
+  });
+});
 it("Hear uses raw source identity without changing the global clock, and unmount releases ownership", async () => {
   const view = setup();
   await ready();

@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isHandleDrag } from "../edit/dragThreshold";
+import { listenForDragInterrupt } from "../hooks/useInterruptCancel";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
 import { canRetimePendingEdit } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -65,6 +66,7 @@ type DragCapture = {
   snap: boolean;
   placement: NonNullable<ReturnType<typeof pendingEdgePlacement>>;
   controller: AbortController;
+  watch: AbortController;
 };
 
 type Gesture =
@@ -346,6 +348,7 @@ function PendingEditRegion({
 
   const cancelGesture = () => {
     if (currentGesture.current.kind !== "idle") {
+      currentGesture.current.watch.abort();
       currentGesture.current.controller.abort();
     }
     currentGesture.current = IDLE;
@@ -509,6 +512,7 @@ function PendingEditRegion({
   useEffect(
     () => () => {
       if (currentGesture.current.kind !== "idle") {
+        currentGesture.current.watch.abort();
         currentGesture.current.controller.abort();
       }
       currentGesture.current = IDLE;
@@ -548,10 +552,16 @@ function PendingEditRegion({
       snap: snapActive(useDawStore.getState().snapEnabled, altKey),
       placement,
       controller: new AbortController(),
+      watch: new AbortController(),
       sourceDeltaSec: 0,
     };
     currentGesture.current = next;
     setGesture(next);
+    listenForDragInterrupt(() => {
+      const held = currentGesture.current;
+      if (held.kind === "dragging" && held.controller === next.controller)
+        cancelGesture();
+    }, next.watch.signal);
     onSelect(edit.id);
   };
 
@@ -578,6 +588,7 @@ function PendingEditRegion({
     if (active.kind !== "dragging" || active.pointerId !== pointerId) {
       return;
     }
+    active.watch.abort();
     const sourceDeltaSec = (clientX - active.originX) / zoomPxPerSec;
     const snap = snapActive(useDawStore.getState().snapEnabled, altKey);
     const preview = pendingEdgePreview({
