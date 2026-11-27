@@ -10,6 +10,7 @@ import {
   vi,
 } from "vitest";
 import type { SegmentRow } from "../api/segments";
+import { useDawStore } from "../state/dawStore";
 import { stopAudition, toggleAudition, useAudition } from "./audition";
 
 vi.mock("../sessionAuth", () => ({
@@ -97,6 +98,23 @@ describe("audition", () => {
       element.dispatchEvent(new Event("ended"));
     });
     expect(element.src).toBe("/api/segments/import/tok/audio?clip=1");
+  });
+
+  it("ends follow once when a clip starts, and leaves it alone when a tap stops the clip", () => {
+    const announce = vi.fn();
+    useDawStore.setState({
+      followingClientId: "other",
+      playbackRate: 1.5,
+      announceStatus: announce,
+    });
+    toggleAudition(row("a"), "a");
+    expect(useDawStore.getState().followingClientId).toBeNull();
+    expect(useDawStore.getState().playbackRate).toBe(1);
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce.mock.calls[0]?.[0]).toBe("Stopped following");
+    useDawStore.setState({ followingClientId: "other" });
+    toggleAudition(row("a"), "a");
+    expect(useDawStore.getState().followingClientId).toBe("other");
   });
 
   it("uses one shared element for every row", () => {
