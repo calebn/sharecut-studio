@@ -69,7 +69,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   "transport.shuttleForward": {
     id: "transport.shuttleForward",
     category: "transport",
-    label: "Speed up (1×/2×/4×)",
+    label: "Speed up (your speed, 2×, 4×)",
     keywords: ["shuttle", "fast forward", "2x", "4x"],
     when: "always",
     notes: "Plays at your speed, then steps to 2× and 4×",

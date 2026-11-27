@@ -33,7 +33,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Seek playhead | session | `transport.seek` | — (not industry-standard; menu/toolbar or unkeyed) | — | — | `seek_session_tool` | — | — | — | — |
 | Pause and return | session | `transport.stop` | `K` | — | — | `stop_session_tool` | — | — | — | anchor · look |
 | Jump back | session | `transport.shuttleBack` | `J` | — | — | `seek_session_tool` | `podcast session seek` | — | — | anchor · look |
-| Speed up (1×/2×/4×) | session | `transport.shuttleForward` | `L` | — | — | `set_session_playing_tool` | — | — | — | anchor · look |
+| Speed up (your speed, 2×, 4×) | session | `transport.shuttleForward` | `L` | — | — | `set_session_playing_tool` | — | — | — | anchor · look |
 | Playback speed | view | `transport.cyclePlaybackSpeed` | `Shift+.` | — | `PlayerSpeedButton` | — | — | — | — | none · none |
 | Audition Full mix / Edited stems / Original | session | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | — | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
 | Hear the original while held | session | `transport.hearOriginal` | `A` | — | — | — | — | — | — | none · none |

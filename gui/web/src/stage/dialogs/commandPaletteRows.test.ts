@@ -68,7 +68,7 @@ describe("paletteCommands", () => {
     });
     expect(rows.find((r) => r.id === "transport.shuttleForward")).toMatchObject(
       {
-        label: "Speed up (1×/2×/4×)",
+        label: "Speed up (your speed, 2×, 4×)",
         shortcut: expect.stringMatching(/L$/),
         defaultKey: "L",
         disabledReason: null,

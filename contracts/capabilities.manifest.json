@@ -123,7 +123,7 @@
     },
     {
       "id": "daw.transport.shuttleForward",
-      "label": "Speed up (1\u00d7/2\u00d7/4\u00d7)",
+      "label": "Speed up (your speed, 2\u00d7, 4\u00d7)",
       "effect": "session",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,

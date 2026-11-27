@@ -24,7 +24,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Jump back 3, 6, then 12 s on quick repeats",
   },
   "daw.transport.shuttleForward": {
-    label: "Speed up (1×/2×/4×)",
+    label: "Speed up (your speed, 2×, 4×)",
     tooltip: "Play at your speed, then step to 2× and 4×",
   },
   "daw.transport.playbackSpeed": {
