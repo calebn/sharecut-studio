@@ -2,9 +2,19 @@ import { isShareProjectKey, shareTokenFromKey } from "./shareMode";
 
 const frozenReviewTokens = new Set<string>();
 
+const listeners = new Set<() => void>();
+
+/** Runs after a remembered frozen status changed for a token; returns the unsubscribe. */
+export function onFrozenReviewChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function rememberFrozenReview(token: string, frozen: unknown): void {
+  const was = frozenReviewTokens.has(token);
   if (frozen === true) frozenReviewTokens.add(token);
   else frozenReviewTokens.delete(token);
+  if (was !== (frozen === true)) for (const l of [...listeners]) l();
 }
 
 /**

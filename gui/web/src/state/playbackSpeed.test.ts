@@ -5,6 +5,7 @@ import {
   shuttleBack,
   shuttleForward,
 } from "../commands/shuttle";
+import { confirmDeadLink } from "../hooks/useDeadLinkWatch";
 import { shareProjectKey } from "../shareMode";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { PLAYBACK_SPEED_STORAGE_KEY } from "../utils/playbackSpeedPref";
@@ -43,6 +44,66 @@ describe("playbackSpeedAvailable", () => {
     expect(playbackSpeedAvailable(shareProjectKey("tok"))).toBe(true);
     rememberFrozenReview("tok", false);
     expect(playbackSpeedAvailable(shareProjectKey("tok"))).toBe(false);
+  });
+});
+
+describe("a frozen-review flip with no hydrate (confirmDeadLink -> loadReviewBootstrap)", () => {
+  const bootstrap = (frozen: boolean) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              capabilities: ["view"],
+              reads_transcript_words: false,
+              frozen_review_view: frozen,
+              meta: {},
+            }),
+          ),
+      ),
+    );
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("live to frozen re-applies the chosen speed", async () => {
+    s().setPlaybackSpeed(1.5);
+    s().hydrate(shareProjectKey("tok"), minimalProject());
+    expect(s().playbackRate).toBe(1);
+    bootstrap(true);
+    await confirmDeadLink("tok");
+    expect(s().playbackRate).toBe(1.5);
+    s().setIsPlaying(true);
+    expect(s().playbackRate).toBe(1.5);
+  });
+
+  it("frozen to live returns the rate to 1", async () => {
+    rememberFrozenReview("tok", true);
+    s().setPlaybackSpeed(1.5);
+    s().hydrate(shareProjectKey("tok"), minimalProject());
+    expect(s().playbackRate).toBe(1.5);
+    bootstrap(false);
+    await confirmDeadLink("tok");
+    expect(s().playbackRate).toBe(1);
+    s().setIsPlaying(true);
+    expect(s().playbackRate).toBe(1);
+  });
+
+  it("leaves a scan and a follow alone", async () => {
+    s().setPlaybackSpeed(1.5);
+    s().hydrate(shareProjectKey("tok"), minimalProject());
+    useDawStore.setState({ isPlaying: true, playbackRate: 2 });
+    bootstrap(true);
+    await confirmDeadLink("tok");
+    expect(s().playbackRate).toBe(2);
+    rememberFrozenReview("tok", false);
+    useDawStore.setState({
+      isPlaying: false,
+      followingClientId: "x",
+      playbackRate: 1.25,
+    });
+    bootstrap(true);
+    await confirmDeadLink("tok");
+    expect(s().playbackRate).toBe(1.25);
   });
 });
 
