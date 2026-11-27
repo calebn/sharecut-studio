@@ -675,12 +675,15 @@ describe("track content", () => {
       ).toBeDisabled();
       expect(
         await screen.findByText(
-          "Lowers 1 music track by 18 dB while people speak. Your own volume points stay.",
+          "Lowers 1 music track by 18 dB while people speak. Your own volume points above the dip are lowered during speech, never raised, and restored when you duck again.",
           {},
           wait,
         ),
       ).toBeVisible();
-      expect(previewDucking).toHaveBeenCalledExactlyOnceWith("/tmp/ep.json");
+      expect(previewDucking).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/ep.json",
+        expect.any(AbortSignal),
+      );
       expect(
         screen.getByRole("button", { name: "Duck music under speech" }),
       ).toBeEnabled();
@@ -744,7 +747,7 @@ describe("track content", () => {
       open(music);
       expect(
         await screen.findByText(
-          "There is no music to lower yet. Add a music track first.",
+          "There is no music to lower: none is added, or every music track is muted or silent. Add or unmute one.",
           {},
           wait,
         ),
@@ -765,6 +768,20 @@ describe("track content", () => {
       expect(
         screen.getByRole("button", { name: "Duck music under speech" }),
       ).toBeEnabled();
+    });
+
+    it("shows a host refusal in its own words and disables Duck, not 'you can still duck'", async () => {
+      vi.mocked(previewDucking).mockRejectedValue(
+        new ApiError("Too many dips to save.", "ducking_too_many_points", 400),
+      );
+      open(music);
+      expect(
+        await screen.findByText("Too many dips to save.", {}, wait),
+      ).toBeVisible();
+      expect(screen.queryByText(/You can still duck/)).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Duck music under speech" }),
+      ).toBeDisabled();
     });
 
     it("is not offered on a voice track, to an editor link or to a viewer, and sends no check", async () => {

@@ -179,7 +179,7 @@ export const TrackMusicDuckReady: Story = {
     const canvas = within(canvasElement);
     await expect(
       await canvas.findByText(
-        "Lowers 1 music track by 18 dB while people speak. Your own volume points stay.",
+        "Lowers 1 music track by 18 dB while people speak. Your own volume points above the dip are lowered during speech, never raised, and restored when you duck again.",
         {},
         DUCK_WAIT,
       ),
@@ -292,7 +292,7 @@ export const TrackMusicDuckPhone: Story = {
     const canvas = within(canvasElement);
     await expect(
       await canvas.findByText(
-        "Lowers 1 music track by 18 dB while people speak. Your own volume points stay.",
+        "Lowers 1 music track by 18 dB while people speak. Your own volume points above the dip are lowered during speech, never raised, and restored when you duck again.",
         {},
         DUCK_WAIT,
       ),

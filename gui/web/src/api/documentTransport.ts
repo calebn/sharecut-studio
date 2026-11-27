@@ -51,6 +51,7 @@ export type DocumentCommandReply =
 async function postDocumentCommand(
   send: (signal: AbortSignal) => Promise<Response>,
   timeoutMs: number,
+  cancel?: AbortSignal,
 ): Promise<DocumentCommandReply> {
   // Read the body inside the timeout: a stalled body must not hang.
   return withAbortTimeout(
@@ -67,6 +68,7 @@ async function postDocumentCommand(
       }
       return { ok: true, data: (await res.json()) as Record<string, unknown> };
     },
+    cancel,
   );
 }
 
@@ -93,6 +95,7 @@ export function postGuestDocumentCommand(
 export function postHostDocumentCommand(
   projectPath: string,
   body: Record<string, unknown>,
+  cancel?: AbortSignal,
 ): Promise<DocumentCommandReply> {
   return postDocumentCommand(
     (signal) =>
@@ -106,5 +109,6 @@ export function postHostDocumentCommand(
         },
       ),
     commandTimeoutMs(body),
+    cancel,
   );
 }

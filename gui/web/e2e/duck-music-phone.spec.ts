@@ -125,7 +125,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(CELLS)) {
         await button.tap();
         await expectFeedback(
           page,
-          "Music now lowers under speech on 1 music track. Play or export to hear it.",
+          "Music now lowers under speech on 1 music track. Hear it once the mix refreshes, in play or export.",
         );
         await expect(
           page

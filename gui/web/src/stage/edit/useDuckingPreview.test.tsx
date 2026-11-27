@@ -1,6 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type DuckingPlan, previewDucking } from "../../api";
+import {
+  applyDuckingCommand,
+  type DuckingPlan,
+  previewDucking,
+} from "../../api";
+import { clearRegisteredCommands, execute } from "../../commands/execute";
+import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject } from "../../test/fixtures";
 import type { HistoryEntryId } from "../../types/project";
@@ -13,10 +19,15 @@ import {
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   previewDucking: vi.fn(),
+  applyDuckingCommand: vi.fn(),
 }));
 
-const plan = (changed: boolean, replacedEarlierDips = 0): DuckingPlan => ({
-  planToken: "t",
+const plan = (
+  changed: boolean,
+  replacedEarlierDips = 0,
+  planToken = "t",
+): DuckingPlan => ({
+  planToken,
   depthDb: -18,
   tracks: [{ trackId: "m", changed, replacedEarlierDips, simplified: false }],
 });
@@ -55,7 +66,10 @@ describe("useDuckingPreview", () => {
     await settle(DUCKING_PREVIEW_DEBOUNCE_MS - 1);
     expect(previewDucking).not.toHaveBeenCalled();
     await settle(1);
-    expect(previewDucking).toHaveBeenCalledExactlyOnceWith("/tmp/ep.json");
+    expect(previewDucking).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/ep.json",
+      expect.any(AbortSignal),
+    );
     expect(result.current).toEqual({ kind: "ready", plan: plan(true) });
   });
 
@@ -118,6 +132,61 @@ describe("useDuckingPreview", () => {
     const { result } = renderHook(() => useDuckingPreview(true));
     await settle();
     expect(result.current).toEqual({ kind: "unreachable" });
+  });
+
+  it("shows a host refusal that is not a state of the episode as its own message, not as unreachable", async () => {
+    vi.mocked(previewDucking).mockRejectedValue(
+      new ApiError("Too many dips.", "ducking_too_many_points", 400),
+    );
+    const { result } = renderHook(() => useDuckingPreview(true));
+    await settle();
+    expect(result.current).toEqual({
+      kind: "refused",
+      message: "Too many dips.",
+    });
+  });
+
+  it("aborts a dry run that a newer one supersedes", async () => {
+    vi.mocked(previewDucking).mockReturnValue(new Promise(() => {}));
+    renderHook(() => useDuckingPreview(true));
+    await settle();
+    const first = vi.mocked(previewDucking).mock.calls[0]?.[1];
+    expect(first?.aborted).toBe(false);
+    moveHistoryTo("hist_2");
+    expect(first?.aborted).toBe(true);
+  });
+
+  it("re-checks on a stale token: a new dry run runs and the row holds the fresh token", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    vi.mocked(applyDuckingCommand).mockReset();
+    vi.mocked(previewDucking).mockResolvedValueOnce(plan(true, 0, "old"));
+    const { result } = renderHook(() => useDuckingPreview(true));
+    await settle();
+    expect(result.current).toEqual({
+      kind: "ready",
+      plan: plan(true, 0, "old"),
+    });
+
+    // The plan moved without the history head moving: the host refuses the token.
+    vi.mocked(applyDuckingCommand).mockRejectedValue(
+      new ApiError("The project changed", "document_conflict", 409),
+    );
+    vi.mocked(previewDucking).mockResolvedValueOnce(plan(true, 0, "fresh"));
+    await act(async () => {
+      await execute(
+        "track.duckUnderSpeech",
+        { planToken: "old" },
+        { skipWhen: true },
+      );
+    });
+    expect(result.current).toEqual({ kind: "checking" });
+    await settle();
+    expect(previewDucking).toHaveBeenCalledTimes(2);
+    expect(result.current).toEqual({
+      kind: "ready",
+      plan: plan(true, 0, "fresh"),
+    });
   });
 
   it("sends nothing while disabled", async () => {
