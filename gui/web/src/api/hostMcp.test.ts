@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchHostMcpActivity } from "./hostMcp";
+import { ACTIVITY_TIMEOUT_MS, fetchHostMcpActivity } from "./hostMcp";
 
 function reply(body: unknown, init?: ResponseInit) {
   return vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -12,7 +12,10 @@ function reply(body: unknown, init?: ResponseInit) {
 }
 
 describe("fetchHostMcpActivity", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("reads the activity shape, with the signal and no caching", async () => {
     const spy = reply({
@@ -28,7 +31,7 @@ describe("fetchHostMcpActivity", () => {
     });
     const [url, init] = spy.mock.calls[0]!;
     expect(url as string).toContain("/api/host-mcp/activity");
-    expect(init?.signal).toBe(controller.signal);
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(init?.cache).toBe("no-store");
   });
 
@@ -63,5 +66,63 @@ describe("fetchHostMcpActivity", () => {
       new Response("{}", { status: 403 }),
     );
     await expect(fetchHostMcpActivity()).rejects.toMatchObject({ status: 403 });
+  });
+
+  function hangUntilAborted() {
+    return vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          );
+        }),
+    );
+  }
+
+  it("times out a read the host never answers", async () => {
+    vi.useFakeTimers();
+    hangUntilAborted();
+    const read = expect(fetchHostMcpActivity()).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    await vi.advanceTimersByTimeAsync(ACTIVITY_TIMEOUT_MS);
+    await read;
+  });
+
+  it("lets the caller cancel at once, without waiting for the timeout", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const spy = hangUntilAborted();
+    const read = expect(
+      fetchHostMcpActivity(controller.signal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    const fetchSignal = spy.mock.calls[0]?.[1]?.signal;
+    expect(fetchSignal?.aborted).toBe(false);
+    controller.abort();
+    expect(fetchSignal?.aborted).toBe(true);
+    await read;
+  });
+
+  it("keeps the body read under the timeout", async () => {
+    vi.useFakeTimers();
+    // Like a real body stream, json() rejects once the request's signal aborts.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "Content-Type": "application/json" }),
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(init.signal?.reason),
+            );
+          }),
+      } as unknown as Response;
+    });
+    const read = expect(fetchHostMcpActivity()).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    await vi.advanceTimersByTimeAsync(ACTIVITY_TIMEOUT_MS);
+    await read;
   });
 });
