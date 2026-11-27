@@ -383,7 +383,9 @@ test("guest playback survives a ten-second chunk outage mid-listen", async ({
         await expect.poll(played).toBeGreaterThan(1);
         await guest.keyboard.press("l");
         await guest.keyboard.press("l");
-        await expect(guest.getByLabel("Playback speed 4×")).toBeVisible();
+        await expect(
+          guest.getByRole("button", { name: "Playback speed, 4×" }),
+        ).toBeVisible();
 
         await expect
           .poll(() => failures, { timeout: 30_000 })
