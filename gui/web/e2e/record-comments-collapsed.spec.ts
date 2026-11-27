@@ -97,8 +97,9 @@ test.describe("host phone, collapsed during a take", () => {
         );
         const announced = async () =>
           (await notices(host).innerText())
-            .replace("Hearing the room.", "")
-            .trim();
+            .split("\n")
+            .filter((l) => l.trim() && l.trim() !== "Hearing the room.")
+            .join("\n");
         const noticesBefore = await announced();
         await guestSays(guest, "one");
         await expect(badge(host)).toHaveText("1 unread");

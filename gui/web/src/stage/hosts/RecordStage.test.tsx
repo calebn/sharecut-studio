@@ -355,6 +355,40 @@ describe("Record stage host phone Comments sheet (#4660)", () => {
     );
     expect(badge()).toHaveTextContent("1");
   });
+  it("guard: a dropped snapshot is not a new room, so the count of the returning room is kept", async () => {
+    stubViewportShell("phone");
+    const existing = [1, 2, 3].map((n) => comment(`c${n}`, "p_g"));
+    setRoom(recording(existing));
+    mount();
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+    await waitFor(() => expect(peek()).toBeNull());
+    act(() =>
+      setRoom({
+        ...recording([...existing, comment("c4", "p_g")]),
+        server_time_ns: 50,
+      }),
+    );
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    expect(badge()).toHaveTextContent("1");
+  });
+
+  it("guard: the first room after a mount with no snapshot adopts the store", async () => {
+    stubViewportShell("phone");
+    useRecordHostStore.getState().setSnapshot(null);
+    mount();
+    act(() => setRoom(recording([comment("c1", "p_g")])));
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    expect(badge()).toBeNull();
+    act(() =>
+      setRoom({
+        ...recording([comment("c1", "p_g"), comment("c2", "p_g")]),
+        server_time_ns: 60,
+      }),
+    );
+    expect(badge()).toHaveTextContent("1");
+  });
+
   it("starts the count afresh when the session id changes to a new room", async () => {
     stubViewportShell("phone");
     const existing = [1, 2, 3].map((n) => comment(`c${n}`, "p_g"));
