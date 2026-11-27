@@ -352,10 +352,8 @@ export function useAudioTransport(enabled = true): void {
         { signal: playerEvents.signal },
       );
       players.set(key, el);
-      applyElementRate(
-        el,
-        key === "source-preview" ? 1 : useDawStore.getState().playbackRate,
-      );
+      // A source preview is pinned to 1x by the rate effect below, which runs in the same commit.
+      applyElementRate(el, useDawStore.getState().playbackRate);
     };
 
     if (startingPreviewUrl) {

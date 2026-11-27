@@ -83,7 +83,9 @@ describe("setPlaybackSpeed", () => {
     s().setPlaybackSpeed(2);
     expect([s().chosenPlaybackRate, s().playbackRate]).toEqual([1.25, 1.02]);
     expect(localStorage.getItem(PLAYBACK_SPEED_STORAGE_KEY)).toBe("1.25");
-    expect(s().statusAnnouncement).toContain("follows");
+    expect(s().statusAnnouncement).toBe(
+      "Speed follows the person you're following.",
+    );
   });
 
   it("refuses on a live Editor link and never stores", () => {
@@ -91,7 +93,9 @@ describe("setPlaybackSpeed", () => {
     s().setPlaybackSpeed(2);
     expect([s().chosenPlaybackRate, s().playbackRate]).toEqual([1, 1]);
     expect(localStorage.getItem(PLAYBACK_SPEED_STORAGE_KEY)).toBeNull();
-    expect(s().statusAnnouncement).toContain("live-episode links");
+    expect(s().statusAnnouncement).toBe(
+      "Speed isn't available on live-episode links yet.",
+    );
   });
 });
 
@@ -151,11 +155,39 @@ describe("a chosen speed survives every reset site", () => {
   });
 
   it("a same-path hydrate keeps rate and chosen; a project switch starts at chosen", () => {
-    useDawStore.setState({ playbackRate: 4 });
+    useDawStore.setState({ playbackRate: 4, isPlaying: true });
     s().hydrate(HOST, minimalProject());
     expect([s().chosenPlaybackRate, s().playbackRate]).toEqual([1.5, 4]);
+    useDawStore.setState({ isPlaying: false });
     s().hydrate("/tmp/other.json", minimalProject());
     expect([s().chosenPlaybackRate, s().playbackRate]).toEqual([1.5, 1.5]);
+  });
+
+  it("a same-path refresh that flips the frozen status re-applies the chosen speed", () => {
+    const key = shareProjectKey("tok");
+    rememberFrozenReview("tok", true);
+    s().hydrate(key, minimalProject());
+    expect(s().playbackRate).toBe(1.5);
+    rememberFrozenReview("tok", false);
+    s().hydrate(key, minimalProject());
+    expect(s().playbackRate).toBe(1);
+    rememberFrozenReview("tok", true);
+    s().hydrate(key, minimalProject());
+    expect(s().playbackRate).toBe(1.5);
+  });
+
+  it("a same-path refresh leaves a scan and a followed leader's rate alone", () => {
+    useDawStore.setState({ playbackRate: 2, isPlaying: true });
+    s().hydrate(HOST, minimalProject());
+    expect(s().playbackRate).toBe(2);
+    useDawStore.setState({
+      isPlaying: false,
+      playbackRate: 1.25,
+      followingClientId: "leader",
+    });
+    s().hydrate(HOST, minimalProject());
+    expect(s().playbackRate).toBe(1.25);
+    useDawStore.setState({ followingClientId: null });
   });
 
   it("hydrate re-evaluates availability for each key: frozen review, live link, host", () => {

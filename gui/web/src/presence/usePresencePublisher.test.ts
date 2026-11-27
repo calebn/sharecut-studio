@@ -20,6 +20,8 @@ describe("usePresencePublisher", () => {
   afterEach(() => {
     setPresenceCursorSink(null);
     vi.useRealTimers();
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+    localStorage.clear();
   });
 
   it("omits copied playhead and viewport while following", () => {
@@ -266,8 +268,6 @@ describe("usePresencePublisher", () => {
       .map((f) => (f.meta as { transport?: { rate: number } }).transport)
       .flatMap((t) => (t ? [t.rate] : []));
     expect(rates.at(-1)).toBe(1.5);
-    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
-    localStorage.clear();
   });
 
   it("publishes a playback rate change while paused", async () => {

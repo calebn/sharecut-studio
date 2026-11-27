@@ -9,6 +9,7 @@ import {
 } from "../presence/followSync";
 import { sessionClientList } from "../presence/roster";
 import { useDawStore } from "../state/dawStore";
+import { followerBaseRate } from "../state/playbackSpeed";
 
 const CORRECTION_MS = 250;
 const STARTUP_RATE_ADJUSTMENT = 0.03;
@@ -58,7 +59,7 @@ export function useFollowTransport(): void {
         now,
         s.project?.timeline_duration_sec ?? 1e9,
       );
-      const baseRate = Number.isFinite(t.rate) && t.rate > 0 ? t.rate : 1;
+      const baseRate = followerBaseRate(t.rate, s.projectPath);
       if (!Number.isFinite(expected)) return;
       if (!t.playing) playbackPhase = { kind: "steady" };
       if (previousPlaying !== true && t.playing) {

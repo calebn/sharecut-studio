@@ -44,7 +44,9 @@ describe(ID, () => {
     const pointer = await execute(ID, {}, { skipWhen: true });
     expect(pointer).toMatchObject({ status: "disabled", told: true });
     expect(s().chosenPlaybackRate).toBe(1);
-    expect(s().statusAnnouncement).toContain("live-episode links");
+    expect(s().statusAnnouncement).toBe(
+      "Speed isn't available on live-episode links yet.",
+    );
   });
 
   it("works on a review link that plays a published version", async () => {
@@ -60,7 +62,9 @@ describe(ID, () => {
     expect(result).toMatchObject({ status: "disabled", told: true });
     expect(s().chosenPlaybackRate).toBe(1);
     expect(s().followingClientId).toBe("leader");
-    expect(s().statusAnnouncement).toContain("follows");
+    expect(s().statusAnnouncement).toBe(
+      "Speed follows the person you're following.",
+    );
   });
 });
 

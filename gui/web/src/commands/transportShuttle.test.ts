@@ -33,6 +33,35 @@ describe("transport.shuttleBack / transport.shuttleForward", () => {
     expect(s().statusAnnouncement).toContain("4×");
   });
 
+  it("L, J and K at a chosen 2x and 1.25x step the ladder and come back", async () => {
+    const rates = async (ids: string[]) => {
+      const seen: number[] = [];
+      for (const id of ids) {
+        await execute(id);
+        seen.push(s().playbackRate);
+      }
+      return seen;
+    };
+    s().setPlaybackSpeed(2);
+    expect(
+      await rates([
+        "transport.shuttleForward",
+        "transport.shuttleForward",
+        "transport.shuttleForward",
+        "transport.stop",
+      ]),
+    ).toEqual([2, 4, 4, 2]);
+    s().setPlaybackSpeed(1.25);
+    useDawStore.setState({ isPlaying: true });
+    expect(
+      await rates([
+        "transport.shuttleForward",
+        "transport.shuttleForward",
+        "transport.shuttleBack",
+      ]),
+    ).toEqual([2, 4, 1.25]);
+  });
+
   it("Space, K and J return a scan to the chosen speed, not 1x", async () => {
     s().setPlaybackSpeed(1.5);
     for (const reset of [

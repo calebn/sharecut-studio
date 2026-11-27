@@ -906,7 +906,7 @@ describe("useAudioTransport playback speed (#3816)", () => {
     unmount();
   });
 
-  it("pins a source preview to 1x at creation and while the speed changes", async () => {
+  it("pins a source preview to 1x once mounted and while the speed changes", async () => {
     useDawStore.getState().setPlaybackSpeed(1.5);
     useDawStore.getState().beginSourcePreview({
       ownerId: "word",

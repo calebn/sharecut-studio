@@ -5,7 +5,11 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { afterCutAfterProject } from "./afterCutSlice";
-import { effectiveChosen } from "./playbackSpeed";
+import {
+  effectiveChosen,
+  playbackSpeedAvailable,
+  sameProjectRatePatch,
+} from "./playbackSpeed";
 import { presenceProjectInitial } from "./presenceSlice";
 import {
   chapterFollowPatch,
@@ -42,6 +46,9 @@ type ProjectSlice = Pick<
   | "activityRunningCount"
   | "hydrate"
 >;
+
+// Whether speed was available at the last hydrate, so a same-path refresh can tell the frozen status flipped.
+let hydratedAvailable: boolean | null = null;
 
 export const createProjectSlice: StateCreator<
   DawStore,
@@ -106,6 +113,8 @@ export const createProjectSlice: StateCreator<
       resetDocumentAuthority(projectPath);
       resetServerClock();
     }
+    const wasAvailable = hydratedAvailable;
+    hydratedAvailable = playbackSpeedAvailable(projectPath);
     set({
       projectPath,
       projectEpoch: samePath ? get().projectEpoch : get().projectEpoch + 1,
@@ -120,6 +129,7 @@ export const createProjectSlice: StateCreator<
       // starts a new session and discards the previous project's status (#78).
       ...(samePath
         ? {
+            ...sameProjectRatePatch(get(), projectPath, wasAvailable),
             ...chapterFollowPatch(get(), initialProject),
             ...transcriptSelectionFollowPatch(get(), initialProject),
           }

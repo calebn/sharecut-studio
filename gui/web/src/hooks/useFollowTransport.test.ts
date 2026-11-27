@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { applyServerClock, resetServerClock } from "../presence/clock";
+import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sessionRoster } from "../test/fixtures";
 import { useFollowTransport } from "./useFollowTransport";
@@ -14,6 +15,8 @@ describe("useFollowTransport", () => {
   afterEach(() => {
     vi.useRealTimers();
     resetServerClock();
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+    localStorage.clear();
   });
 
   it("a clock sample alone does not re-render or notify the store", () => {
@@ -235,8 +238,44 @@ describe("useFollowTransport", () => {
     expect(useDawStore.getState().playbackRate).toBe(1);
     act(() => useDawStore.getState().stopFollow());
     expect(useDawStore.getState().playbackRate).toBe(1.5);
-    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
-    localStorage.clear();
+  });
+
+  describe("on a live-episode link", () => {
+    const follow = (rate: number) => {
+      const nowNs = Date.now() * 1e6;
+      useDawStore.getState().hydrate(shareProjectKey("tok"), minimalProject());
+      useDawStore.setState({
+        followingClientId: "a",
+        playheadSec: 0,
+        isPlaying: false,
+        sessionClients: sessionRoster([
+          {
+            client_id: "a",
+            role: "viewer",
+            last_seen_ns: nowNs,
+            meta: {
+              transport: {
+                playing: true,
+                playhead_sec: 4,
+                rate,
+                stamped_ns: nowNs,
+              },
+            },
+          },
+        ]),
+      });
+      renderHook(() => useFollowTransport());
+    };
+
+    it("plays a leader's chosen 1.5x at 1x", () => {
+      follow(1.5);
+      expect(useDawStore.getState().playbackRate).toBe(1);
+    });
+
+    it("still follows a leader's 2x scan", () => {
+      follow(2);
+      expect(useDawStore.getState().playbackRate).toBe(2);
+    });
   });
 
   it("applies leader pause/rate edges immediately and stops correcting after unfollow", () => {
