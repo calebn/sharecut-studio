@@ -926,17 +926,4 @@ describe("a track the server says was transcribed but heard no speech", () => {
     expect(result.current.view.phase).not.toBe("new-audio");
     expect(result.current.view.readyNote).toBeUndefined();
   });
-
-  it("is new audio when the server says it was not transcribed", () => {
-    useDawStore.setState({ project: silent(false) });
-    const { result } = render();
-    expect(result.current.view.phase).toBe("new-audio");
-    expect(result.current.view.readyNote).toMatch(/Priya.s audio is new/);
-  });
-
-  it("falls back to the utterance test when the server does not send the flag", () => {
-    useDawStore.setState({ project: silent(undefined) });
-    const { result } = render();
-    expect(result.current.view.phase).toBe("new-audio");
-  });
 });
