@@ -591,7 +591,10 @@ describe("Review queue for a guest", () => {
       registerDawCommands();
     });
     afterEach(() => {
-      useDawStore.setState({ shellBreakpoint: "desktop" });
+      useDawStore.setState({
+        shellBreakpoint: "desktop",
+        handheldLandscape: false,
+      });
       vi.unstubAllGlobals();
     });
 
@@ -736,6 +739,28 @@ describe("Review queue for a guest", () => {
       join("comment");
       render(<ReviewHost guestShare />);
       expect(field()).toBeVisible();
+    });
+
+    it("lets a Commenter on a handheld in landscape close the open field, as in the Listen layout", () => {
+      stubViewportShell("tablet", { handheld: true });
+      useDawStore.setState({
+        shellBreakpoint: "tablet",
+        handheldLandscape: true,
+      });
+      join("comment");
+      useDawStore.setState(composing({ startSec: 1, endSec: null }));
+      render(<ReviewHost guestShare />);
+      expect(field()).toBeVisible();
+      expect(screen.getByRole("button", { name: "Close" })).toBeVisible();
+    });
+
+    it("gives a Commenter on a tablet that is no handheld no Close on the field", () => {
+      stubViewportShell("tablet");
+      useDawStore.setState({ shellBreakpoint: "tablet" });
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(field()).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
     });
 
     it("keeps the field before the card on a desktop", () => {
