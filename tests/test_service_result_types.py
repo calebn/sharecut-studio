@@ -41,7 +41,6 @@ DICT_RETURNS: dict[str, int] = {
     "document/feed.py": 2,
     "document/play_session.py": 3,
     "document/service_base.py": 4,
-    "document/transcript.py": 1,
     "document_sync/capabilities.py": 1,
     "document_sync/commands.py": 1,
     "document_sync/handlers/comments.py": 7,

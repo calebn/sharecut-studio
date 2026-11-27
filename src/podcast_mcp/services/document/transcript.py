@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
@@ -52,7 +52,7 @@ from podcast_mcp.edits.transcript_timing import (
 from podcast_mcp.edits.transcript_timing import (
     WordTimingContext as WordTimingContext,
 )
-from podcast_mcp.edits.unsure_words import unsure_predicate, unsure_words_by_edit
+from podcast_mcp.edits.unsure_words import UnsureWord, unsure_predicate, unsure_words_by_edit
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.models.registry import require_model
 from podcast_mcp.engines.models.whisper import resolve_whisper_model
@@ -703,7 +703,7 @@ class TranscriptService(WorkspaceService):
         """The project's one unsure-word line (``analysis.unsure_word_confidence``)."""
         return unsure_word_confidence(self.ws.effective_config())
 
-    def unsure_words_for(self, decisions: list[EditDecision]) -> dict[str, list[dict[str, Any]]]:
+    def unsure_words_for(self, decisions: list[EditDecision]) -> Mapping[str, list[UnsureWord]]:
         """Each pending cut's unsure transcript words, by edit id (the ProjectView's `unsure_words`)."""
         return unsure_words_by_edit(self.ws.project, decisions, self.unsure_threshold())
 
