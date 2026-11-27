@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { dragInterrupts, resetViewport } from "../test/pageInterrupts";
 import { ScriptPane, type ScriptPaneProps } from "./ScriptPane";
 import {
   CUT,
@@ -100,6 +101,7 @@ beforeEach(() => layout());
 
 afterEach(() => {
   vi.restoreAllMocks();
+  resetViewport();
   vi.useRealTimers();
   delete (document as { elementFromPoint?: unknown }).elementFromPoint;
 });
@@ -454,6 +456,42 @@ describe("ScriptPane touch", () => {
     expect(onSelect.mock.calls).toEqual([[words(12, 12)]]);
     fireEvent.pointerMove(grip, { ...FINGER, ...centre(13) });
     expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(Object.entries(dragInterrupts))(
+    "%s puts the selection back like Esc while an end grip is dragged, and the rest of the drag does nothing",
+    (_name, interrupt) => {
+      layout();
+      const { onSelect, container } = setup({ selection: words(12, 12) });
+      const grip = container.querySelector<HTMLElement>(
+        '.sys-handle[data-edge="end"]',
+      );
+      if (!grip) throw new Error("no end grip");
+      fireEvent.pointerDown(grip, { ...FINGER, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(grip, { ...FINGER, ...centre(14) });
+      expect(onSelect).toHaveBeenCalled();
+      onSelect.mockClear();
+      interrupt();
+      expect(onSelect.mock.calls).toEqual([[words(12, 12)]]);
+      fireEvent.pointerMove(grip, { ...FINGER, ...centre(13) });
+      fireEvent.pointerUp(grip, { ...FINGER, ...centre(13) });
+      expect(onSelect).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("an end grip dragged and let go keeps the dragged selection", () => {
+    layout();
+    const { onSelect, container } = setup({ selection: words(12, 12) });
+    const grip = container.querySelector<HTMLElement>(
+      '.sys-handle[data-edge="end"]',
+    );
+    if (!grip) throw new Error("no end grip");
+    fireEvent.pointerDown(grip, { ...FINGER, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(grip, { ...FINGER, ...centre(14) });
+    fireEvent.pointerUp(grip, { ...FINGER, ...centre(14) });
+    expect(onSelect.mock.calls.at(-1)).toEqual([words(12, 14)]);
+    dragInterrupts.blur();
+    expect(onSelect.mock.calls.at(-1)).toEqual([words(12, 14)]);
   });
 
   it("a hold that never moves selects just that word, with its grips", () => {
