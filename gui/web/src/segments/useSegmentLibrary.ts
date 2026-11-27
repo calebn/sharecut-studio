@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadSegments, removeSegment, type SegmentListRow } from "../api";
 import { ApiError, errorMessage } from "../utils/apiError";
+import { LIBRARY_CHANGED_EVENT, segmentIdOf } from "./libraryChanged";
 
 export const SEGMENT_BUSY_MESSAGE =
   "Another action is using this segment. Try again.";
@@ -54,6 +55,17 @@ export function useSegmentLibrary(enabled = true): SegmentLibraryState {
       });
     return () => controller.abort();
   }, [enabled, round]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const changed = (event: Event) => {
+      const id = segmentIdOf(event);
+      if (id !== undefined) pending.current = id;
+      setRound((n) => n + 1);
+    };
+    window.addEventListener(LIBRARY_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(LIBRARY_CHANGED_EVENT, changed);
+  }, [enabled]);
 
   useEffect(() => {
     if (highlightId === null) return;

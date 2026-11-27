@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type KitListRow, loadKits } from "../api";
+import { LIBRARY_CHANGED_EVENT } from "../segments/libraryChanged";
 import { HIGHLIGHT_MS } from "../segments/useSegmentLibrary";
 import { errorMessage } from "../utils/apiError";
 
@@ -46,6 +47,13 @@ export function useKitLibrary(enabled: boolean): KitLibraryState {
       });
     return () => controller.abort();
   }, [enabled, readToken]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const changed = () => setReadToken({});
+    window.addEventListener(LIBRARY_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(LIBRARY_CHANGED_EVENT, changed);
+  }, [enabled]);
 
   useEffect(() => {
     if (highlightId === null) return;

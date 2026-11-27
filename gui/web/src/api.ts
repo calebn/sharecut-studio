@@ -148,6 +148,7 @@ export {
   isHostProjectKey,
   NETWORK_ERROR_CODE,
 } from "./api/http";
+export { dropInboxFile, fetchInboxFile } from "./api/inbox";
 export { openJobStream } from "./api/jobStream";
 export type {
   DamagedKitRow,
