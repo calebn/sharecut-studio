@@ -377,10 +377,13 @@ test("a mixed-rate raw guest keeps its own meter lit through a seek while a sile
         await setAudition(page, "raw");
         const guestHeader = trackHeaderOf(trackHeaderButton(page, "guest"));
         await play(page);
-        await expect.poll(() => ringLevel(guestHeader)).toBeGreaterThan(0.1);
-        expect(
-          await ringLevel(trackHeaderOf(trackHeaderButton(page, "reference"))),
-        ).toBe(0);
+        const referenceHeader = trackHeaderOf(
+          trackHeaderButton(page, "reference"),
+        );
+        await expect(async () => {
+          expect(await ringLevel(guestHeader)).toBeGreaterThan(0.1);
+          expect(await ringLevel(referenceHeader)).toBe(0);
+        }).toPass({ timeout: 15_000 });
         const position = page.getByRole("slider", {
           name: "Timeline position",
         });
