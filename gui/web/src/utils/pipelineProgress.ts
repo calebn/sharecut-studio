@@ -1,8 +1,8 @@
-import { stepActivity } from "../stages/prepare/prepareMappers";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { modelNeededOfJob, notDownloadedLine } from "./apiError";
 import { isAnalyzeJob, isPipelineKindJob } from "./pipeline";
 import { plainError } from "./plainError";
+import { stepActivity } from "./prepareRows";
 
 /** True when the job has an honest determinate total (no fake %). */
 export function hasDeterminateProgress(
@@ -80,31 +80,31 @@ export function pipelineStateSentence(
 }
 
 const RUNNING_STEP = /^Running (\w+)$/;
-const COMPLETED_STEP = /^Completed \w+:/;
+const COMPLETED_STEP = /^Completed \w+(:|$)/;
 
 /**
  * A running or finished pipeline job's message without the engine's step ids
  * and summaries: "Running <id>" becomes the row's activity or nothing, and
- * "Completed <id>: <summary>" goes. Other jobs and messages are unchanged.
+ * "Completed <id>" with or without a summary goes. Other jobs and messages are unchanged.
  */
-export function plainJobMessage(
+function plainJobMessage(
   job: Pick<PipelineJobSnapshot, "kind" | "status">,
-  message: string | null | undefined,
+  message: string,
 ): string {
-  const text = message ?? "";
-  if (!isPipelineKindJob(job) || job.status === "error") return text;
-  const running = RUNNING_STEP.exec(text);
+  if (!isPipelineKindJob(job) || job.status === "error") return message;
+  const running = RUNNING_STEP.exec(message);
   if (running) return stepActivity(running[1]!) ?? "";
-  return COMPLETED_STEP.test(text) ? "" : text;
+  return COMPLETED_STEP.test(message) ? "" : message;
 }
 
 /** The job's message (or label when it has none), safe to show or speak. */
 export function jobHeadline(
   job: Pick<PipelineJobSnapshot, "kind" | "status" | "message" | "label">,
 ): string | undefined {
-  return job.message
-    ? plainJobMessage(job, job.message)
-    : (job.label ?? undefined);
+  return (
+    (job.message ? plainJobMessage(job, job.message) : "") ||
+    (job.label ?? undefined)
+  );
 }
 
 /** Chip prefix: "Pipeline" only for pipeline jobs; "Activity" otherwise. */

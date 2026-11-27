@@ -9,12 +9,12 @@ import {
 } from "./pipeline";
 import {
   hasDeterminateProgress,
+  jobHeadline,
   pipelineChromeLabel,
   pipelineKindLabel,
   pipelineProgressPercent,
   pipelineUnitNoun,
   pipelineUnitsLabel,
-  plainJobMessage,
   STALE_AFTER_S,
   staleUpdateLabel,
   truncateHeadline,
@@ -213,48 +213,82 @@ describe("pipelineChromeLabel on a failure", () => {
   });
 });
 
-describe("plainJobMessage", () => {
+describe("jobHeadline", () => {
   const pipeline = (status: PipelineJobSnapshot["status"]) =>
     ({ kind: "pipeline", status }) as const;
+  const headline = (
+    base: Pick<PipelineJobSnapshot, "kind" | "status">,
+    message: string | null,
+    label?: string,
+  ) => jobHeadline({ ...base, message, label });
 
   it("turns Running <step> into the row's activity wording", () => {
-    expect(
-      plainJobMessage(pipeline("running"), "Running transcribe_tracks"),
-    ).toBe("Transcribing");
-    expect(plainJobMessage(pipeline("running"), "Running align_tracks")).toBe(
+    expect(headline(pipeline("running"), "Running transcribe_tracks")).toBe(
+      "Transcribing",
+    );
+    expect(headline(pipeline("running"), "Running align_tracks")).toBe(
       "Lining up tracks",
     );
-    expect(plainJobMessage(pipeline("running"), "Running balance_tracks")).toBe(
+    expect(headline(pipeline("running"), "Running balance_tracks")).toBe(
       "Cleaning",
     );
     expect(
-      plainJobMessage(pipeline("running"), "Running analyze_fillers_pauses"),
+      headline(pipeline("running"), "Running analyze_fillers_pauses"),
     ).toBe("Finding suggestions");
   });
 
   it("says nothing for a step with no row", () => {
     for (const id of ["export_deliverables", "master_loudness", "mix_music"]) {
-      expect(plainJobMessage(pipeline("running"), `Running ${id}`)).toBe("");
+      expect(headline(pipeline("running"), `Running ${id}`)).toBeUndefined();
     }
   });
 
   it("drops Completed <step>: summary on a running or finished pipeline job", () => {
     const text = "Completed clean_audio: highpass on 2 dialogue tracks";
-    expect(plainJobMessage(pipeline("running"), text)).toBe("");
-    expect(plainJobMessage(pipeline("ok"), text)).toBe("");
+    expect(headline(pipeline("running"), text)).toBeUndefined();
+    expect(headline(pipeline("ok"), text)).toBeUndefined();
+  });
+
+  it("drops the no-summary Completed <step> the engine sends for a step without one", () => {
+    expect(
+      headline(pipeline("running"), "Completed clean_audio"),
+    ).toBeUndefined();
+    expect(headline(pipeline("ok"), "Completed clean_audio")).toBeUndefined();
+    expect(headline(pipeline("running"), "Completed clean_audio extra")).toBe(
+      "Completed clean_audio extra",
+    );
+  });
+
+  it("falls back to the job label when the plain message is empty or missing", () => {
+    expect(
+      headline(pipeline("running"), "Completed align_tracks: ok", "Prepare"),
+    ).toBe("Prepare");
+    expect(
+      headline(pipeline("running"), "Running export_deliverables", "Prepare"),
+    ).toBe("Prepare");
+    expect(headline(pipeline("running"), null, "Prepare")).toBe("Prepare");
+    expect(
+      headline(pipeline("running"), "Running align_tracks", "Prepare"),
+    ).toBe("Lining up tracks");
+  });
+
+  it("reads the room-tone step as the row its run window sits in", () => {
+    expect(
+      headline(pipeline("running"), "Running extract_room_tone_beds"),
+    ).toBe("Lining up tracks");
   });
 
   it("leaves other messages, other kinds and failures unchanged", () => {
-    expect(plainJobMessage(pipeline("running"), "Writing deliverables")).toBe(
+    expect(headline(pipeline("running"), "Writing deliverables")).toBe(
       "Writing deliverables",
     );
-    expect(
-      plainJobMessage({ kind: "bounce", status: "running" }, "Running x_y"),
-    ).toBe("Running x_y");
-    expect(
-      plainJobMessage(pipeline("error"), "Completed clean_audio: boom"),
-    ).toBe("Completed clean_audio: boom");
-    expect(plainJobMessage(pipeline("running"), null)).toBe("");
+    expect(headline({ kind: "bounce", status: "running" }, "Running x_y")).toBe(
+      "Running x_y",
+    );
+    expect(headline(pipeline("error"), "Completed clean_audio: boom")).toBe(
+      "Completed clean_audio: boom",
+    );
+    expect(headline(pipeline("running"), null)).toBeUndefined();
   });
 
   it("feeds the chrome label so the chip never names a step id", () => {

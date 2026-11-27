@@ -167,6 +167,27 @@ export const Done: Story = {
   },
 };
 
+export const DoneWithDetails: Story = {
+  args: {
+    rows: [
+      {
+        id: "clean",
+        state: "done",
+        title: "Clean and level",
+        detail: "Cleaned and levelled both tracks",
+        details: "Clean · highpass on 2 dialogue tracks",
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Details for Clean and level" }),
+    );
+    await expect(canvas.getByText(/highpass on 2/)).toBeVisible();
+  },
+};
+
 export const ApproximateTimingOnPhone: Story = {
   args: { rows: ROWS.approximateTimingPhone },
   play: async ({ canvasElement }) => {

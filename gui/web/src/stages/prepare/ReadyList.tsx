@@ -9,8 +9,9 @@ import { StatusList } from "../../system/StatusList";
 import { StatusRow, type StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
+import type { ReadyRowId } from "../../utils/prepareRows";
 
-export type ReadyRowId = "add" | "transcribe" | "align" | "clean" | "suggest";
+export type { ReadyRowId };
 
 export type ReadyAction =
   | "try-again"
