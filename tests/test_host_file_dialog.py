@@ -14,9 +14,10 @@ from podcast_mcp.gui.host_file_dialog import (
     pick_episode_project_path,
     pick_folder,
 )
-from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, PROJECT_FILE_EXTENSION
+from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
 from podcast_mcp.util import process
 from podcast_mcp.util.host_platform import GENERIC_POSIX, IOS, LINUX, MACOS, WINDOWS
+from podcast_mcp.util.project_file_extension import PROJECT_FILE_EXTENSION
 
 
 def test_normalize_chosen_empty_is_cancelled() -> None:

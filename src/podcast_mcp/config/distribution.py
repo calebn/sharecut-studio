@@ -18,7 +18,7 @@ from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 from podcast_mcp import settings
-from podcast_mcp.models.episode import PROJECT_FILE_EXTENSION
+from podcast_mcp.util.project_file_extension import PROJECT_FILE_EXTENSION
 
 _BUNDLE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$")
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*$")
