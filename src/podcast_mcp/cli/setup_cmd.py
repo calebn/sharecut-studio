@@ -225,6 +225,8 @@ def install_and_report(
     if model := result.get("model"):
         detail = f"{detail} ({model})"
     with lines():
+        if result.get("notice"):
+            typer.echo(f"[note] {result['notice']}", err=True)
         if result.get("loads") is False:
             typer.echo(
                 f"[warn] {spec.id} downloaded but cannot be loaded here: {result['load_error']}",

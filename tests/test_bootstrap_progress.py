@@ -1290,3 +1290,36 @@ def test_run_bootstrap_keeps_ok_true_and_carries_the_load_failure(
     assert out["ok"] is True
     assert out["results"]["speaker-ecapa"]["loads"] is False
     assert "unsupported opset 99" in out["results"]["speaker-ecapa"]["load_error"]
+
+
+def test_the_fallback_notice_is_a_message_event_and_a_result_field(clock: None) -> None:
+    from podcast_mcp.util.model_manifest import FALLBACK_NOTICE
+
+    def install(variant, force, on_progress):
+        on_progress(DownloadProgress(0, 10))
+        worker = threading.Thread(target=on_progress.notice, args=(FALLBACK_NOTICE,))
+        worker.start()  # the hub's fallback thread
+        worker.join()
+        on_progress(DownloadProgress(10, 10))
+        return {"ok": True, "path": "/stub"}
+
+    job = Job.bootstrap("b1", ["rnnoise"])
+    results: list[dict[str, Any]] = []
+    events = _run_in_job(job, lambda: results.append(_install(replace(RNNOISE, install=install))))
+
+    text = f"{RNNOISE.label}: {FALLBACK_NOTICE}"
+    messages = [
+        e
+        for e in events
+        if e["type"] == "progress" and e["kind"] == "message" and e["message"] == text
+    ]
+    assert len(messages) == 1
+    assert messages[0]["task_id"] == DOWNLOAD_TASK_ID
+    assert results[0]["notice"] == text
+
+
+def test_a_result_has_no_notice_field_when_nothing_fell_back(clock: None) -> None:
+    def install(variant, force, on_progress):
+        return {"ok": True, "path": "/stub"}
+
+    assert "notice" not in _install(replace(RNNOISE, install=install))

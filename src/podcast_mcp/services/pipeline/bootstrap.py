@@ -216,6 +216,20 @@ class _ByteRelay:
         self._lock = threading.Lock()
         self._stack = ExitStack()
         self._task: ProgressTask | None = None
+        self.notice_text: str | None = None
+
+    def notice(self, text: str) -> None:
+        """Tell every progress consumer why the download changed course, once per install.
+
+        Called on the thread that runs the download, which may be the hub's fallback worker, so
+        it takes the same lock as a tick. The text is kept for ``install_model``'s result.
+        """
+        with self._lock:
+            if self.notice_text is not None:
+                return
+            self.notice_text = f"{self._label}: {text}"
+            if self._task is not None:
+                self._task.message(self.notice_text)
 
     def __call__(self, progress: DownloadProgress) -> None:
         raise_if_cancel_requested(self._cancel_check, "Stopping after the current file")
@@ -258,7 +272,9 @@ def install_model(
 
     ``persist_preference=False`` leaves the saved Whisper default alone (a one-run choice).
 
-    Download progress runs as a ``bootstrap.bytes`` child of the current progress task.
+    Download progress runs as a ``bootstrap.bytes`` child of the current progress task. When a
+    download falls back to plain HTTP the result carries ``notice`` (one line of plain text; the
+    same text goes out as a ``message`` event on that task).
     A known failure raises ``InstallFailure`` (the only place it is classified) after logging
     its cause with the traceback; anything else is a bug and raises as it was. ``cancel_check`` stops a download mid-stream.
 
@@ -273,6 +289,8 @@ def install_model(
     with _ByteRelay(spec.id, spec.label, cancel_check) as relay:
         try:
             result = install(variant, force, relay)
+            if relay.notice_text is not None:
+                result = {**result, "notice": relay.notice_text}
         except CancelledProgress:
             raise
         except Exception as exc:
