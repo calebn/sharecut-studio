@@ -114,12 +114,29 @@ async function boxOf(locator: ReturnType<typeof caption>): Promise<Box> {
   return { x, y, w: width, h: height };
 }
 
+/**
+ * The caption's layout box, read through offset metrics. Unlike
+ * getBoundingClientRect these ignore transforms and the individual translate
+ * property, so the nudge-bump shake cannot move what is measured.
+ */
+async function layoutBoxOf(locator: ReturnType<typeof caption>): Promise<Box> {
+  return locator.evaluate((el) => {
+    const e = el as HTMLElement;
+    return {
+      x: e.offsetLeft,
+      y: e.offsetTop,
+      w: e.offsetWidth,
+      h: e.offsetHeight,
+    };
+  });
+}
+
 /** The boxes that must not move when the caption appears, bolds or goes. */
 async function layout(page: Page) {
   return {
     record: await boxOf(stopButton(page)),
     pause: await boxOf(pause(page)),
-    hint: await boxOf(caption(page)),
+    hint: await layoutBoxOf(caption(page)),
     dock: await boxOf(dock(page)),
   };
 }
@@ -245,6 +262,22 @@ test.describe("a live Stop button", () => {
           expect(rest.nudge).toBe(false);
           await expect(status(host)).toHaveText("");
           const before = await layout(host);
+          // The Record column is the 4rem disc: a caption that widened it would
+          // be wider at rest too, so compare against the token, not "before".
+          const column = await stopButton(host).evaluate((el) => ({
+            rem: parseFloat(
+              getComputedStyle(document.documentElement).fontSize,
+            ),
+            parent: (el.parentElement as HTMLElement).offsetWidth,
+          }));
+          expect(
+            before.record.w,
+            "the Record button stays 4rem wide",
+          ).toBeLessThanOrEqual(4 * column.rem + 0.5);
+          expect(
+            column.parent,
+            "the Record column is no wider than its 4rem button",
+          ).toBeLessThanOrEqual(4 * column.rem + 0.5);
           if (cell.shots) {
             await attachShot(host, testInfo, `rest-${cell.name}`);
           }
