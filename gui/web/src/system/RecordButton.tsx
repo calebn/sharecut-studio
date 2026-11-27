@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { InlineConfirm } from "../ui";
 import { BUSY_REASON, disabledAttrs } from "../ui/disabledReason";
 import { usePressHint } from "./usePressHint";
@@ -135,6 +136,14 @@ export function RecordButton({
     }
     hint.show();
   }
+
+  function cancelHold() {
+    window.clearTimeout(timer.current);
+    timer.current = undefined;
+    setHolding(false);
+  }
+
+  useInterruptCancel(cancelHold, holding);
 
   function key(event: KeyboardEvent<HTMLButtonElement>) {
     if (face === "live" && (event.key === "Enter" || event.key === " ")) {
