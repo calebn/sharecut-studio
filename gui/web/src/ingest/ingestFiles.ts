@@ -195,6 +195,7 @@ export async function ingestFiles(
           }));
       current.announceStatus(
         `Importing ${list.length} file(s)…${refused.length > 0 ? ` ${refusalLine(refused)}` : ""}`,
+        refused.length > 0 ? { tone: "error" } : undefined,
       );
       if (ingestTarget.kind === "track") {
         const first = list[0]!;
