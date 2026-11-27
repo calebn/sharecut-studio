@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { type ComponentProps, Profiler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOLD_TO_STOP_MS, RecordButton } from "./RecordButton";
 
@@ -15,6 +16,54 @@ function caption(container: HTMLElement) {
 function tap(button: HTMLElement) {
   fireEvent.pointerDown(button, { button: 0 });
   fireEvent.pointerUp(button);
+}
+
+type Props = Partial<ComponentProps<typeof RecordButton>>;
+
+/**
+ * Mounts a RecordButton and records the caption and status text of every
+ * commit. Profiler's onRender runs in the layout phase, after the DOM is
+ * updated and before passive effects, so it sees what a screen reader could
+ * catch before an effect clears it. `rerender` and fireEvent flush effects, so
+ * only this probe can tell a committed flash from a settled state.
+ */
+function mountProbed(props: Props) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const seen: string[] = [];
+  const onRender = () => {
+    const el = host.querySelector(".sys-record-hint");
+    const status = host.querySelector("[role=status]");
+    if (el) {
+      seen.push(
+        `${el.hasAttribute("data-nudge") ? "nudge" : "rest"}|${status?.textContent ?? ""}`,
+      );
+    }
+  };
+  const tree = (next: Props) => (
+    <Profiler id="rb" onRender={onRender}>
+      <RecordButton
+        face="live"
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        {...props}
+        {...next}
+      />
+    </Profiler>
+  );
+  const view = render(tree({}), { container: host });
+  return {
+    seen,
+    rerender: (next: Props) => view.rerender(tree(next)),
+    unmount: () => {
+      view.unmount();
+      host.remove();
+    },
+  };
+}
+
+function stale(seen: string[]) {
+  return seen.filter((state) => state !== "rest|");
 }
 
 describe("RecordButton", () => {
@@ -160,6 +209,59 @@ describe("RecordButton", () => {
     expect(caption(container)).not.toHaveAttribute("data-nudge");
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(caption(container)).toHaveTextContent("Hold to stop");
+  });
+
+  it.each(["Enter", " "])(
+    "%j asks first, confirming stops, and the name stays Stop take",
+    (key) => {
+      const onStop = vi.fn();
+      render(<RecordButton face="live" onStart={vi.fn()} onStop={onStop} />);
+      const button = screen.getByRole("button", { name: "Stop take" });
+      fireEvent.keyDown(button, { key });
+      expect(onStop).not.toHaveBeenCalled();
+      const confirm = screen.getByRole("group", { name: /stop this take/i });
+      expect(button).toHaveAccessibleName("Stop take");
+      fireEvent.click(
+        within(confirm).getByRole("button", { name: "Stop take" }),
+      );
+      expect(onStop).toHaveBeenCalledTimes(1);
+      expect(button).toHaveAccessibleName("Stop take");
+    },
+  );
+
+  it("[GUARD] never commits a stale emphasis when a take pauses and goes live again", () => {
+    const view = mountProbed({});
+    tap(screen.getByRole("button", { name: "Stop take" }));
+    expect(view.seen.at(-1)).toBe("nudge|Hold to stop");
+    view.seen.length = 0;
+    view.rerender({ face: "paused" });
+    view.rerender({ face: "live" });
+    expect(view.seen.length).toBeGreaterThan(0);
+    expect(stale(view.seen)).toEqual([]);
+    view.unmount();
+  });
+
+  it("never commits the emphasis in the commit that goes busy", () => {
+    const view = mountProbed({});
+    tap(screen.getByRole("button", { name: "Stop take" }));
+    view.seen.length = 0;
+    view.rerender({ busy: true });
+    expect(view.seen.length).toBeGreaterThan(0);
+    expect(stale(view.seen)).toEqual([]);
+    view.unmount();
+  });
+
+  it("never commits the emphasis in the commit where busy clears after a release that landed while busy", () => {
+    const view = mountProbed({});
+    const button = screen.getByRole("button", { name: "Stop take" });
+    fireEvent.pointerDown(button, { button: 0 });
+    view.rerender({ busy: true });
+    fireEvent.pointerUp(button);
+    view.seen.length = 0;
+    view.rerender({ busy: false });
+    expect(view.seen.length).toBeGreaterThan(0);
+    expect(stale(view.seen)).toEqual([]);
+    view.unmount();
   });
 
   it("a stopped take does not leave the emphasis on the next one (keyboard path)", () => {

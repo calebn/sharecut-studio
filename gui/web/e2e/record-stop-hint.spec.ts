@@ -15,6 +15,7 @@ import {
   hostRecordState,
   joinAsGuest,
   roomPill,
+  stopHostTake,
 } from "./recordRoom";
 import { inRoom, LAPTOP, phoneAt } from "./recordRoomPages";
 import { setTheme, withAppearance } from "./theme";
@@ -393,6 +394,26 @@ test.describe("a live Stop button", () => {
           .poll(() => hostRecordState(host, projectPath))
           .not.toBe("recording");
         await host.mouse.up();
+      },
+    );
+  });
+
+  test("laptop: [GUARD] Enter asks, the confirm stops, and the name stays Stop take", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await inRoom(
+      browser,
+      { host: LAPTOP, guest: LAPTOP },
+      async ({ host, guest, projectPath, room }) => {
+        await goLive(host, guest, projectPath, room);
+        await expect(stopButton(host)).toHaveAccessibleName("Stop take");
+        await stopHostTake(host, host.locator(".sys-dock"), projectPath);
+        await expect
+          .poll(() => hostRecordState(host, projectPath))
+          .not.toBe("recording");
       },
     );
   });
