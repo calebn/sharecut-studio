@@ -1,6 +1,7 @@
 import { apiSend, HOST_KEY } from "../api";
 import { audioContextCtor } from "../utils/audio";
 import { createChannelPeakTap } from "./channelPeakTap";
+import { applyElementRate } from "./elementRate";
 import { pcmWavHeader } from "./wavHeader";
 
 type HostMeterAsset = { url: string } & (
@@ -609,7 +610,7 @@ export function createHostPlaybackMeterMonitor(options: {
             branches.push({ gain, tap });
           }
           const { gain, tap } = branches[0];
-          media.playbackRate = target.playbackRate;
+          applyElementRate(media, target.playbackRate);
           media.volume = 1;
           reader.state = {
             kind: "bound",
@@ -689,7 +690,7 @@ export function createHostPlaybackMeterMonitor(options: {
       }
       media.volume = 1;
     }
-    media.playbackRate = target.playbackRate;
+    applyElementRate(media, target.playbackRate);
     if (media.readyState < 2) return;
     if (state.kind === "priming" && !state.position) {
       state.position = {

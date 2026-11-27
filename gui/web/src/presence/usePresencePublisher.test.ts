@@ -20,6 +20,8 @@ describe("usePresencePublisher", () => {
   afterEach(() => {
     setPresenceCursorSink(null);
     vi.useRealTimers();
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+    localStorage.clear();
   });
 
   it("omits copied playhead and viewport while following", () => {
@@ -248,6 +250,24 @@ describe("usePresencePublisher", () => {
       transport: { playhead_sec: number };
     };
     expect(last.transport.playhead_sec).toBe(5);
+  });
+
+  it("publishes the rate it actually plays at, so a follower stays in sync with a chosen speed", async () => {
+    useDawStore.getState().setPlaybackSpeed(1.5);
+    useDawStore.setState({
+      followingClientId: null,
+      isPlaying: false,
+      playheadSec: 3,
+    });
+    const sent: Record<string, unknown>[] = [];
+    renderHook(() => usePresencePublisher((frame) => sent.push(frame), "Host"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+    const rates = sent
+      .map((f) => (f.meta as { transport?: { rate: number } }).transport)
+      .flatMap((t) => (t ? [t.rate] : []));
+    expect(rates.at(-1)).toBe(1.5);
   });
 
   it("publishes a playback rate change while paused", async () => {

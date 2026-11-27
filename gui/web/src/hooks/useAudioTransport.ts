@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { audioUrl, isFrozenReviewKey, reviewVersionAtBootstrap } from "../api";
+import { applyElementRate } from "../audio/elementRate";
 import {
   createHostPlaybackMeterMonitor,
   type HostMeterContextBarrier,
@@ -351,7 +352,8 @@ export function useAudioTransport(enabled = true): void {
         { signal: playerEvents.signal },
       );
       players.set(key, el);
-      el.playbackRate = useDawStore.getState().playbackRate;
+      // A source preview is pinned to 1x by the rate effect below, which runs in the same commit.
+      applyElementRate(el, useDawStore.getState().playbackRate);
     };
 
     if (startingPreviewUrl) {
@@ -464,9 +466,9 @@ export function useAudioTransport(enabled = true): void {
       return;
     }
     for (const el of playersRef.current.values()) {
-      el.playbackRate = playbackRate;
+      applyElementRate(el, preview ? 1 : playbackRate);
     }
-  }, [playbackRate, enabled, modeKey]);
+  }, [playbackRate, enabled, modeKey, preview]);
 
   useEffect(() => {
     const explicitSeek = appliedSeekRevision.current !== playheadSeekRevision;

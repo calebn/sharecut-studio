@@ -65,7 +65,7 @@ describe("keymap registry", () => {
       keys: ["J"],
     });
     expect(keymapCommandById("transport.shuttleForward")).toMatchObject({
-      label: "Speed up (1×/2×/4×)",
+      label: "Speed up (your speed, 2×, 4×)",
       keys: ["L"],
     });
   });
@@ -762,5 +762,83 @@ describe("Mod+E export and the retired chords", () => {
         `${key} ${shiftKey}`,
       ).toBeNull();
     }
+  });
+});
+
+describe("Shift+. across keyboard layouts", () => {
+  const SPEED = "transport.cyclePlaybackSpeed";
+  const ids = (e: Partial<KeyboardEvent>) =>
+    matchKeymapCommands(keyEvent(e), false).map((c) => c.id);
+
+  it.each([
+    ["US Shift+. (>)", { key: ">", code: "Period", shiftKey: true }, [SPEED]],
+    ["US bare .", { key: ".", code: "Period" }, ["edit.more"]],
+    [
+      "AZERTY Shift+Comma types . and opens More",
+      { key: ".", code: "Comma", shiftKey: true },
+      ["edit.more"],
+    ],
+    [
+      "AZERTY Shift+Period types / and is help only",
+      { key: "/", code: "Period", shiftKey: true },
+      ["help.shortcuts"],
+    ],
+    [
+      "German Shift+Period types : and falls back to speed",
+      { key: ":", code: "Period", shiftKey: true },
+      [SPEED],
+    ],
+    [
+      "JIS Shift+Period types > and cycles",
+      { key: ">", code: "Period", shiftKey: true },
+      [SPEED],
+    ],
+    [
+      "ISO Shift+< (IntlBackslash types >) does not cycle",
+      { key: ">", code: "IntlBackslash", shiftKey: true },
+      [],
+    ],
+    [
+      "a code-less synthetic Shift+> still cycles",
+      { key: ">", code: "", shiftKey: true },
+      [SPEED],
+    ],
+  ])("%s", (_name, e, expected) => {
+    const got = ids(e);
+    if (expected[0] === "help.shortcuts") {
+      expect(got).not.toContain(SPEED);
+      expect(got).not.toContain("edit.more");
+      expect(got.length).toBeGreaterThan(0);
+    } else {
+      expect(got).toEqual(expected);
+    }
+  });
+
+  it("Dvorak: Shift on the physical Period key (types E) never cycles speed", () => {
+    const got = ids({ key: "E", code: "Period", shiftKey: true });
+    expect(got).not.toContain(SPEED);
+    expect(got).not.toContain("edit.more");
+    expect(got).toEqual(ids({ key: "E", code: "KeyE", shiftKey: true }));
+  });
+
+  it("Dvorak: bare Period key (types e) is not More or speed", () => {
+    const got = ids({ key: "e", code: "Period" });
+    expect(got).not.toContain(SPEED);
+    expect(got).not.toContain("edit.more");
+  });
+
+  it("keeps ? help and Shift+E rows unshadowed", () => {
+    expect(ids({ key: "?", code: "Slash", shiftKey: true })).not.toContain(
+      SPEED,
+    );
+    expect(ids({ key: "E", code: "KeyE", shiftKey: true })).not.toContain(
+      SPEED,
+    );
+  });
+
+  it("does not fall back with a command modifier held", () => {
+    expect(
+      ids({ key: ":", code: "Period", shiftKey: true, ctrlKey: true }),
+    ).not.toContain(SPEED);
   });
 });

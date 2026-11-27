@@ -19,11 +19,16 @@ import {
   listenScriptOf,
 } from "../../stages/guest/listenLayout";
 import { useDawStore } from "../../state/dawStore";
+import {
+  effectiveChosen,
+  playbackSpeedRefusal,
+} from "../../state/playbackSpeed";
 import { transportAvailability } from "../../state/transportAvailability";
 import { useDaw } from "../../state/useDaw";
 import type { PlayerProps } from "../../system/Player";
 import type { AuditionMode } from "../../types/session";
 import { audioErrorLabel, NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
+import { nextPlaybackSpeed } from "../../utils/playbackSpeedPref";
 import { guestMixBehind, staleMixLabel } from "../../utils/staleRender";
 import { formatTimeShort, transportTimecode } from "../../utils/time";
 import { auditionOf, cutsLabel, hearModeOf, playerTicks } from "./playerModel";
@@ -57,6 +62,8 @@ export function usePlayerProps(
     followDegraded,
     sessionClients,
     playbackRate,
+    chosenPlaybackRate,
+    shellBreakpoint,
     reviewPeaks,
     loadFailed,
   } = useDaw((s) => ({
@@ -74,6 +81,8 @@ export function usePlayerProps(
     followDegraded: s.followDegraded,
     sessionClients: s.sessionClients,
     playbackRate: s.playbackRate,
+    chosenPlaybackRate: s.chosenPlaybackRate,
+    shellBreakpoint: s.shellBreakpoint,
     reviewPeaks: s.reviewPeaks,
     loadFailed: s.listenLoadFailed,
   }));
@@ -164,6 +173,31 @@ export function usePlayerProps(
         ? staleMixLabel(breakdown)
         : undefined;
   const mayComment = canComment(projectPath, guestMode, shareCapabilities);
+  const followingName = leader ? rosterDisplayName(leader) : followingClientId;
+  // The phone bar has no room for it; tapping the time opens the expanded card, which does.
+  const showSpeed = !(form === "bar" && shellBreakpoint === "phone");
+  const speedRefusal = playbackSpeedRefusal({ followingClientId, projectPath });
+  const speedOf = (): PlayerProps["speed"] =>
+    showSpeed
+      ? {
+          rate:
+            followingClientId == null
+              ? playbackRate
+              : Math.round(playbackRate * 4) / 4,
+          next: nextPlaybackSpeed(chosenPlaybackRate),
+          scan:
+            followingClientId == null &&
+            playbackRate !==
+              effectiveChosen({ chosenPlaybackRate, projectPath }),
+          disabledReason:
+            speedRefusal === undefined
+              ? undefined
+              : followingClientId == null
+                ? speedRefusal
+                : `Following ${followingName}. Speed follows them.`,
+          onCycle: () => runPointerCommand("transport.cyclePlaybackSpeed"),
+        }
+      : undefined;
 
   return {
     form,
@@ -171,8 +205,7 @@ export function usePlayerProps(
     time: clock.current,
     total: clock.total,
     cuts: removedSeconds === null ? undefined : cutsLabel(removedSeconds),
-    rate:
-      followingClientId == null && playbackRate > 1 ? playbackRate : undefined,
+    speed: speedOf(),
     state,
     errorLabel: hasAudioError ? audioErrorLabel(audioError) : undefined,
     status: unavailable ?? mixStatus,
@@ -182,7 +215,7 @@ export function usePlayerProps(
     peaks: guest ? reviewPeaks : undefined,
     following: followingClientId
       ? {
-          name: leader ? rosterDisplayName(leader) : followingClientId,
+          name: followingName ?? followingClientId,
           colorIndex: leader?.meta?.color_index ?? 0,
           detail: followDetail(
             followDegraded,

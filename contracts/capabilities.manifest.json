@@ -123,7 +123,7 @@
     },
     {
       "id": "daw.transport.shuttleForward",
-      "label": "Speed up (1\u00d7/2\u00d7/4\u00d7)",
+      "label": "Speed up (your speed, 2\u00d7, 4\u00d7)",
       "effect": "session",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -138,11 +138,34 @@
         ]
       },
       "omit": {},
-      "tooltip": "Play at 1\u00d7, then step to 2\u00d7 and 4\u00d7",
+      "tooltip": "Play at your speed, then step to 2\u00d7 and 4\u00d7",
       "presence": {
         "cursor": "anchor",
         "follow": "look",
         "anchor": "transport:shuttle-forward"
+      }
+    },
+    {
+      "id": "daw.transport.playbackSpeed",
+      "label": "Playback speed",
+      "effect": "view",
+      "service": "ShareCut Studio command bus",
+      "industry_standard_key": true,
+      "gates": [
+        "playbackSpeedAvailable"
+      ],
+      "surfaces": {
+        "command": "transport.cyclePlaybackSpeed",
+        "gui": [
+          "PlayerSpeedButton"
+        ],
+        "keyboard": "Shift+."
+      },
+      "omit": {},
+      "tooltip": "Cycle 1\u00d7, 1.25\u00d7, 1.5\u00d7, 2\u00d7",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
       }
     },
     {

@@ -85,16 +85,131 @@ describe("Player", () => {
     );
   });
 
-  it("shows the Playback rate in the expanded readout, where the bar may have dropped it", () => {
-    render(<Player {...base} form="expanded" rate={2} />);
-    const readout = document.querySelector(".sys-player-readout");
-    expect(readout).toContainElement(
-      screen.getByRole("status", { name: "Playback speed 2×" }),
+  describe("speed button (#3816)", () => {
+    const speed = (extra: Partial<NonNullable<PlayerProps["speed"]>> = {}) => ({
+      rate: 1.5,
+      next: 2,
+      onCycle: vi.fn(),
+      ...extra,
+    });
+
+    it.each([
+      ["bar", ".sys-player-left"],
+      ["expanded", ".sys-player-actions"],
+      ["dock", ".sys-listen-dock-transport"],
+    ] as const)(
+      "is one button named with its speed, in the right place of the %s form",
+      (form, holder) => {
+        const props = speed();
+        render(<Player {...base} form={form} speed={props} />);
+        const button = screen.getByRole("button", {
+          name: "Playback speed, 1.5×",
+        });
+        expect(button).toHaveTextContent("1.5×");
+        expect(button).toHaveAttribute(
+          "title",
+          "Playback speed 1.5×. Next: 2×",
+        );
+        expect(document.querySelector(holder)).toContainElement(button);
+        expect(screen.queryByRole("status", { name: /Playback speed/ })).toBe(
+          null,
+        );
+      },
     );
-    expect(screen.getByText("2×").closest(".pill")).toHaveAttribute(
-      "title",
-      "Playback speed",
+
+    it("sits first in the expanded actions row and between Play and Comment in the dock", () => {
+      const { unmount } = render(
+        <Player
+          {...base}
+          form="expanded"
+          speed={speed()}
+          hearMenu={{ mode: "mix", onMode: () => undefined }}
+          onComment={() => undefined}
+        />,
+      );
+      const actions = document.querySelector(".sys-player-actions");
+      expect(actions?.firstElementChild).toBe(
+        screen.getByRole("button", { name: /^Playback speed/ }),
+      );
+      unmount();
+      render(
+        <Player
+          {...base}
+          form="dock"
+          speed={speed()}
+          onComment={() => undefined}
+          onChapters={() => undefined}
+        />,
+      );
+      const names = Array.from(
+        document.querySelectorAll(".sys-listen-dock-transport button"),
+      ).map((el) => el.getAttribute("aria-label"));
+      expect(names).toEqual([
+        "Chapters",
+        "Back 15 seconds",
+        "Play",
+        "Forward 15 seconds",
+        "Playback speed, 1.5×",
+        "Comment at 12:04",
+      ]);
+    });
+
+    it("steps by a press and by Enter and Space", async () => {
+      const props = speed();
+      render(<Player {...base} form="expanded" speed={props} />);
+      const button = screen.getByRole("button", { name: /^Playback speed/ });
+      await userEvent.click(button);
+      button.focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.keyboard(" ");
+      expect(props.onCycle).toHaveBeenCalledTimes(3);
+    });
+
+    it("shows a scan's rate and marks it", () => {
+      render(
+        <Player
+          {...base}
+          form="expanded"
+          speed={speed({ rate: 4, scan: true })}
+        />,
+      );
+      const button = screen.getByRole("button", { name: "Playback speed, 4×" });
+      expect(button).toHaveAttribute("data-scan");
+    });
+
+    it.each(["bar", "expanded", "dock"] as const)(
+      "stays focusable and gives its reason as text in the %s form",
+      async (form) => {
+        const props = speed({
+          rate: 1,
+          disabledReason: "Following Maya. Speed follows them.",
+        });
+        render(<Player {...base} form={form} speed={props} />);
+        const button = screen.getByRole("button", {
+          name: "Playback speed, 1×",
+        });
+        expect(button).toHaveAttribute("aria-disabled", "true");
+        expect(button).not.toBeDisabled();
+        expect(button).toHaveAccessibleDescription(
+          "Following Maya. Speed follows them.",
+        );
+        expect(
+          screen.getByText("Following Maya. Speed follows them."),
+        ).toBeVisible();
+        button.focus();
+        expect(button).toHaveFocus();
+        await userEvent.click(button);
+        expect(props.onCycle).toHaveBeenCalledOnce();
+      },
     );
+
+    it("draws no button without a speed, and no pill ever", () => {
+      render(<Player {...base} form="bar" />);
+      expect(screen.queryByRole("button", { name: /^Playback speed/ })).toBe(
+        null,
+      );
+      expect(document.querySelector(".sys-player-rate")).toBeNull();
+    });
   });
 
   it.each(["bar", "expanded", "dock"] as const)(

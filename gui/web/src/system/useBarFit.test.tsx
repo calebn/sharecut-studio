@@ -32,7 +32,11 @@ describe("barFitKey", () => {
   const updateCases = [
     ["clock width", { time: "01:12:04.250" }],
     ["cut duration", { cuts: "−4 min 10 s" }],
-    ["playback speed", { rate: 2 }],
+    ["playback speed", { speed: { rate: 2 } }],
+    [
+      "playback speed reason",
+      { speed: { rate: 1, disabledReason: "Following Maya." } },
+    ],
     ["solo label", { solo: "Cal" }],
     ["player state", { state: "error" }],
     ["error label", { errorLabel: "Audio failed to load" }],

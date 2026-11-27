@@ -406,7 +406,7 @@ test.describe("Stage shell on desktop", () => {
   }) => {
     await renderPreview(page);
     await openProject(page);
-    const play = player(page).getByRole("button", { name: /Play|Pause/ });
+    const play = player(page).getByRole("button", { name: /^(Play|Pause)$/ });
     await play.click();
     await expect(play).toHaveAttribute("aria-label", /Pause/);
     await play.click();

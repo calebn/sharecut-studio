@@ -1184,10 +1184,10 @@ button.sys-version-line {
    up one more thing: 1 the 40 rem layout (the "/ total" goes), 2 the Following
    detail, 3 the Status pills' text, 4 the skip buttons, 5 the cuts, 6 the hear
    chevron (above 22 rem outside a short frame, where A and B open the same
-   menu), 7 the other pills, the rate and the status, 8 Comment, Retry and the
-   Audio error pill. Pills are hidden visually and keep their names; the skip
-   buttons, Stop following, Comment and Retry are `display: none`, so they take no
-   focus. The hear chevron is the exception: at levels 6 to 8 above 22 rem
+   menu), 7 the other pills, the speed button and the status, 8 Comment, Retry and
+   the Audio error pill. Pills and the speed reason are hidden visually and keep
+   their names; the skip buttons, the speed button, Stop following, Comment and
+   Retry are `display: none`, so they take no focus. The hear chevron is the exception: at levels 6 to 8 above 22 rem
    outside a short frame it is a 1 px clipped box, not `display: none`, so Tab
    still reaches it. Keyboard focus reveals the trigger over the A/B group. */
 .sys-player-host > .sys-player .sys-player-pill > svg,
@@ -1257,6 +1257,68 @@ button.sys-version-line {
   white-space: nowrap;
 }
 
+/* The speed button steps 1×, 1.25×, 1.5×, 2× and shows what plays now; a scan
+   gets the accent border. aria-disabled keeps it focusable beside its reason. */
+.sys-player-speed {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--control-height);
+  min-block-size: var(--control-height);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sys-player-speed:hover {
+  background: var(--color-hover);
+}
+
+.sys-player-speed[data-scan] {
+  border-color: var(--color-accent);
+}
+
+.sys-player-speed[aria-disabled="true"] {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+}
+
+.sys-player-speed-reason {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .sys-player-speed {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+@container sys-player (max-width: 40rem) {
+  .sys-player-speed {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+.sys-listen-dock .sys-player-speed {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
 .sys-player-host:is(
     [data-fit="3"],
     [data-fit="4"],
@@ -1278,7 +1340,7 @@ button.sys-version-line {
     .sys-player-following,
     .sys-player-solo,
     .sys-player-mix,
-    .sys-player-rate,
+    .sys-player-speed-reason,
     .sys-player-status
   ) {
   position: absolute;
@@ -1343,7 +1405,8 @@ button.sys-version-line {
   }
 }
 
-.sys-player-host:is([data-fit="7"], [data-fit="8"]) .sys-pill-x {
+.sys-player-host:is([data-fit="7"], [data-fit="8"])
+  :is(.sys-pill-x, .sys-player-speed) {
   display: none;
 }
 
@@ -1392,7 +1455,8 @@ button.sys-version-line {
   .sys-player-host
     > .sys-player
     .sys-player-comment:not(.sys-player-comment--guest),
-  .sys-player-host > .sys-player .sys-pill-x {
+  .sys-player-host > .sys-player .sys-pill-x,
+  .sys-player-host > .sys-player .sys-player-speed {
     display: none;
   }
 
@@ -1404,7 +1468,7 @@ button.sys-version-line {
       .sys-player-mix,
       .sys-player-status,
       .sys-player-cuts,
-      .sys-player-rate
+      .sys-player-speed-reason
     ) {
     position: absolute;
     inline-size: 1px;
@@ -1484,6 +1548,7 @@ html[data-frame-short]
     .sys-player-skip,
     .sys-player-ab,
     .sys-pill-x,
+    .sys-player-speed,
     .sys-player-comment:not(.sys-player-comment--guest)
   ) {
   display: none;
@@ -1498,7 +1563,7 @@ html[data-frame-short]
     .sys-player-mix,
     .sys-player-status,
     .sys-player-cuts,
-    .sys-player-rate
+    .sys-player-speed-reason
   ) {
   position: absolute;
   inline-size: 1px;
@@ -1736,10 +1801,89 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
   }
 }
 
+/* The speed button sits in the transport row between the Play cluster and
+   Comment. From 20 to 24.5 rem (a 320 to 390 px phone at normal text) a
+   Commenter's row cannot hold six 44 px targets, so the transport's buttons
+   become cells of the dock grid and the speed button takes the readout row
+   beside the total. At larger text 20 rem is wider than the dock, so a
+   Commenter's transport wraps and the frame folds. A Viewer has no Comment
+   and keeps the grid at every text size, so its dock holds its token height. */
+@container sys-player (width <= 24.5rem) {
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment)) {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-rows:
+      var(--touch-min) calc(var(--touch-min) - var(--space-3))
+      minmax(calc(var(--target-dock-primary) + var(--space-6) / 2), auto);
+    grid-template-areas:
+      "strip strip strip strip"
+      "elapsed centre speed total"
+      "chapters cluster cluster comment";
+  }
+
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment))
+    .sys-listen-dock-transport {
+    display: contents;
+  }
+
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment))
+    .sys-listen-dock-chapters {
+    grid-area: chapters;
+    margin-inline-end: 0;
+  }
+
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment))
+    .sys-listen-dock-cluster {
+    grid-area: cluster;
+    justify-self: center;
+  }
+
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment)) .sys-player-speed {
+    grid-area: speed;
+    margin-block: calc(var(--space-3) / -2);
+  }
+}
+
+@container sys-player (20rem <= width <= 24.5rem) {
+  .sys-listen-dock {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-rows:
+      var(--touch-min) calc(var(--touch-min) - var(--space-3))
+      minmax(calc(var(--target-dock-primary) + var(--space-6) / 2), auto);
+    grid-template-areas:
+      "strip strip strip strip"
+      "elapsed centre speed total"
+      "chapters cluster cluster comment";
+  }
+
+  .sys-listen-dock-transport {
+    display: contents;
+  }
+
+  .sys-listen-dock-chapters {
+    grid-area: chapters;
+    margin-inline-end: 0;
+  }
+
+  .sys-listen-dock-cluster {
+    grid-area: cluster;
+    justify-self: center;
+  }
+
+  .sys-listen-dock .sys-player-speed {
+    grid-area: speed;
+    margin-block: calc(var(--space-3) / -2);
+  }
+
+  .sys-listen-dock-comment {
+    grid-area: comment;
+    margin-inline-start: 0;
+  }
+}
+
 /* A folded frame (useShortFrame) keeps the dock as one touch-height row:
    the clock, the strip, Chapters (when the dock has it), Play and, on a
-   Commenter link, an icon-only Comment. The skips, the total, the chapter
-   name and the status text give way; the status keeps a button that says why
+   Commenter link, an icon-only Comment. The skips, the total, the speed
+   button and its reason, the chapter name and the status text give way; the status keeps a button that says why
    in a toast. */
 html[data-frame-short] .sys-listen-dock {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -1750,6 +1894,7 @@ html[data-frame-short] .sys-listen-dock {
 }
 
 html[data-frame-short] .sys-listen-dock-transport {
+  display: flex;
   flex-wrap: nowrap;
   min-block-size: 0;
 }
@@ -1760,6 +1905,8 @@ html[data-frame-short] .sys-listen-dock-strip {
 
 html[data-frame-short] .sys-listen-dock-total,
 html[data-frame-short] .sys-listen-dock .sys-player-skip,
+html[data-frame-short] .sys-listen-dock .sys-player-speed,
+html[data-frame-short] .sys-listen-dock-centre .sys-player-speed-reason,
 html[data-frame-short] .sys-listen-dock-chapter,
 html[data-frame-short] .sys-listen-dock-status,
 html[data-frame-short] .sys-listen-dock-comment-label {
@@ -1901,6 +2048,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 }
 
 .sys-player-center--large {
+  flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-6);
 }
@@ -1939,6 +2087,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-player-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-5);
 }

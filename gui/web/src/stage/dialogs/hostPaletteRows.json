@@ -3,6 +3,7 @@
   ["transport.stop", null],
   ["transport.shuttleBack", null],
   ["transport.shuttleForward", null],
+  ["transport.cyclePlaybackSpeed", null],
   ["render.refreshMix", null],
   ["stage.record", null],
   ["stage.prepare", null],

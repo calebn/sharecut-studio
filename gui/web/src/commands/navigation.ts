@@ -6,6 +6,7 @@ import { withSettledPreviewTransport } from "../presence/previewTransportPublica
 import { rosterEntry } from "../presence/roster";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { playbackSpeedRefusal } from "../state/playbackSpeed";
 import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { transportAvailability } from "../state/transportAvailability";
 import type { AuditionMode } from "../state/types";
@@ -66,6 +67,16 @@ export function registerNavigationCommands(): void {
     step();
     return { status: "ok" };
   };
+  registerCommand("transport.cyclePlaybackSpeed", () => {
+    const s = useDawStore.getState();
+    const why = playbackSpeedRefusal(s);
+    if (why !== undefined) {
+      s.announceStatus(why, { toast: false });
+      return { status: "disabled", reason: why, told: true };
+    }
+    s.cyclePlaybackSpeed();
+    return { status: "ok" };
+  });
   registerCommand("transport.shuttleBack", () => shuttle(shuttleBack));
   registerCommand("transport.shuttleForward", () => shuttle(shuttleForward));
 

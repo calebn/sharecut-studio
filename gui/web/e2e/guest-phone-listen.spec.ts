@@ -25,6 +25,7 @@ import { withBrowserPages } from "./twoBrowserPages";
  */
 
 const TOUCH_MIN = 44;
+const NARROW_DOCK_PX = 392;
 
 const { defaultBrowserType: _iphoneBrowser, ...iPhone } = devices["iPhone 13"];
 const { defaultBrowserType: _pixelBrowser, ...pixel } = devices["Pixel 7"];
@@ -151,6 +152,8 @@ const scrubber = (guest: Page) =>
   guest.getByRole("slider", { name: "Episode overview" });
 const commentButton = (guest: Page) =>
   guest.getByRole("button", { name: /^Comment at/ });
+const speedButton = (guest: Page) =>
+  guest.getByRole("button", { name: /^Playback speed, / });
 const commentsRow = (guest: Page) =>
   guest.getByRole("button", { name: /^Show\b.*\bcomments?/ });
 const composer = (guest: Page) => guest.locator(".rv-compose");
@@ -161,28 +164,65 @@ async function expectDockFits(guest: Page, width: number) {
     const transport = document.querySelector<HTMLElement>(
       ".sys-listen-dock-transport",
     );
-    if (!dock || !transport) return null;
+    const play = document.querySelector<HTMLElement>(".sys-play-btn");
+    if (!dock || !transport || !play) return null;
     const style = getComputedStyle(dock);
-    const controls = [...transport.querySelectorAll<HTMLElement>("button")]
-      .map((el) => el.getBoundingClientRect())
-      .filter((r) => r.width > 0);
-    const gap = parseFloat(getComputedStyle(transport).columnGap) || 0;
-    const used =
-      controls.reduce((sum, r) => sum + r.width, 0) +
-      gap * (controls.length - 1);
+    const playBox = play.getBoundingClientRect();
+    const middle = playBox.top + playBox.height / 2;
+    const all = [...transport.querySelectorAll<HTMLElement>("button")].map(
+      (el) => ({ el, rect: el.getBoundingClientRect() }),
+    );
+    // The row Play sits in: the transport row, whether the transport is a flex row or its buttons are cells of the dock grid.
+    const row = all
+      .filter(({ rect }) => rect.top <= middle && rect.bottom >= middle)
+      .filter(({ rect }) => rect.width > 0);
+    const speed = document.querySelector<HTMLElement>(".sys-player-speed");
+    const speedBox = speed?.getBoundingClientRect();
+    const totalBox = document
+      .querySelector(".sys-listen-dock-total")
+      ?.getBoundingClientRect();
+    const holder =
+      getComputedStyle(transport).display === "contents" ? dock : transport;
+    const gap = parseFloat(getComputedStyle(holder).columnGap) || 0;
+    const padding = parseFloat(style.paddingInlineStart);
     const box = dock.getBoundingClientRect();
+    const room = box.width - 2 * padding;
+    const used =
+      row.reduce((sum, { rect }) => sum + rect.width, 0) +
+      gap * (row.length - 1);
+    const chapters = row.some(
+      ({ el }) =>
+        (el.getAttribute("aria-label") ?? el.textContent ?? "").trim() ===
+        "Chapters",
+    );
     return {
-      count: controls.length,
-      free: transport.clientWidth - used,
-      scrolls: transport.scrollWidth > transport.clientWidth,
-      left: Math.min(...controls.map((r) => r.left)) - box.left,
-      right: box.right - Math.max(...controls.map((r) => r.right)),
-      padding: parseFloat(style.paddingInlineStart),
+      chapters,
+      count: row.length,
+      free: room - used,
+      scrolls: dock.scrollWidth > dock.clientWidth,
+      left: Math.min(...row.map(({ rect }) => rect.left)) - box.left,
+      right: box.right - Math.max(...row.map(({ rect }) => rect.right)),
+      padding,
+      speedInRow: row.some(({ el }) => el === speed),
+      speedClearOfTotal:
+        speedBox && totalBox
+          ? speedBox.right <= totalBox.left + 0.5 ||
+            speedBox.top >= totalBox.bottom
+          : true,
+      speedInsideDock: speedBox
+        ? speedBox.left >= box.left && speedBox.right <= box.right
+        : false,
     };
   });
   expect(fit).not.toBeNull();
   if (!fit) return;
-  expect(fit.count).toBe(5);
+  // A 340 or 320 px dock cannot hold six 44 px targets in one row: the speed button takes the readout row.
+  const speedInRow = width > NARROW_DOCK_PX;
+  expect(fit.speedInRow).toBe(speedInRow);
+  // Back, Play, Forward and Comment, plus the speed button and Chapters when each is in the row.
+  expect(fit.count).toBe(4 + (speedInRow ? 1 : 0) + (fit.chapters ? 1 : 0));
+  expect(fit.speedInsideDock).toBe(true);
+  expect(fit.speedClearOfTotal).toBe(true);
   expect(fit.scrolls).toBe(false);
   expect(fit.left).toBeGreaterThanOrEqual(fit.padding - 0.5);
   expect(fit.right).toBeGreaterThanOrEqual(fit.padding - 0.5);
@@ -564,6 +604,7 @@ for (const profile of PROFILES) {
             guest.getByRole("button", { name: "Chapters" }),
             guest.getByRole("button", { name: "Back 15 seconds" }),
             guest.getByRole("button", { name: "Forward 15 seconds" }),
+            speedButton(guest),
           ]) {
             await expectReached(control);
             await expectTouchTarget(control);

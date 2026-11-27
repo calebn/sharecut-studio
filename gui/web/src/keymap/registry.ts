@@ -54,6 +54,14 @@ export type KeymapCommand = {
    * chose keeps working without Shift.
    */
   shiftOnDefaultKey?: boolean;
+  /**
+   * The character the default key types with Shift held on a US layout (">" for
+   * Shift+.). The default chord matches that glyph, not the bare key's character,
+   * so a layout that types "." with Shift (AZERTY) keeps "." for the bare-key row.
+   * A layout whose Shift+key types some other symbol matches by the physical
+   * `e.code` only when no other row claims the event (see `shiftedGlyphFallback`).
+   */
+  shiftedGlyph?: string;
   /** Keys in `keys` that need Shift held (Shift+F10); the others match with or without. */
   shiftKeys?: string[];
   /** A toggle a held key must not flip back and forth (M saves the mix mute). */
@@ -125,14 +133,28 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "transport.shuttleForward",
     category: "transport",
-    label: "Speed up (1×/2×/4×)",
+    label: "Speed up (your speed, 2×, 4×)",
     keys: ["L"],
     bareKey: true,
     requireShift: false,
     noRepeat: true,
     when: "always",
     notes:
-      "Plays at 1×, then 2× and 4× on repeats; J, K or Space returns to 1×",
+      "Plays at your playback speed, then 2× and 4× on repeats; J, K or Space returns to it",
+  },
+  {
+    id: "transport.cyclePlaybackSpeed",
+    category: "transport",
+    label: "Playback speed",
+    keys: ["."],
+    bareKey: true,
+    requireShift: true,
+    shiftOnDefaultKey: true,
+    shiftedGlyph: ">",
+    noRepeat: true,
+    when: "playbackSpeedAvailable",
+    notes: "Shift+.: cycles 1×, 1.25×, 1.5×, 2×",
+    collision: "Bare . opens the Action bar's More menu on the Edit stage",
   },
   {
     id: "edit.clearSelection",
@@ -636,7 +658,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     noRepeat: true,
     when: "editStage",
-    notes: ".: open the Action bar's More menu",
+    notes: ".: open the Action bar's More menu; Shift+. is Playback speed",
   },
   {
     id: "comment.draftAt",
@@ -1184,6 +1206,13 @@ export function matchKeymapCommands(
 
     const keys = effectiveKeys(cmd);
     const pool = cmd.requireAlt ? altCandidates : candidates;
+    if (cmd.shiftedGlyph && !getKeymapOverride(cmd.id)) {
+      // An ISO "<>" key (IntlBackslash) also types ">" on Shift; that key is not the speed key. Any other key that types ">" is (Dvorak, German, US).
+      if (e.key === cmd.shiftedGlyph && e.code !== "IntlBackslash") {
+        out.push(cmd);
+      }
+      continue;
+    }
     const matched = keys.some(
       (k) =>
         (e.shiftKey || !cmd.shiftKeys?.includes(k)) &&
@@ -1193,9 +1222,34 @@ export function matchKeymapCommands(
       out.push(cmd);
     }
   }
+  if (out.length === 0) {
+    out.push(...shiftedGlyphFallback(e));
+  }
   return out.sort(
     (a, b) =>
       (SHARED_KEY_RANK.get(a.id) ?? 0) - (SHARED_KEY_RANK.get(b.id) ?? 0),
+  );
+}
+
+/**
+ * Shift+physical key on a layout whose Shift symbol is not the US glyph (":" on
+ * German). Only when no row matched the event's character, so AZERTY Shift+Period
+ * ("/" → "?" help) and Dvorak's Shift+E never reach it.
+ */
+function shiftedGlyphFallback(
+  e: Pick<
+    KeyboardEvent,
+    "key" | "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey"
+  >,
+): KeymapCommand[] {
+  if (!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return [];
+  // A letter or digit means another layout's own key (Dvorak's Shift+E on the physical Period key).
+  if (/^[\p{L}\p{N}]$/u.test(e.key)) return [];
+  return KEYMAP_COMMANDS.filter(
+    (cmd) =>
+      cmd.shiftedGlyph &&
+      !getKeymapOverride(cmd.id) &&
+      cmd.keys.some((k) => keyFromCode(e.code) === k),
   );
 }
 

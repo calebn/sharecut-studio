@@ -458,7 +458,7 @@ const measureBar = () => {
       [".sys-player-cuts", "cuts"],
       [".sys-player-following", "following"],
       [".sys-player-mix", "updating mix"],
-      [".sys-player-rate", "speed"],
+      [".sys-player-speed", "speed"],
       [".sys-pill--danger", "audio error"],
       [".sys-player-retry", "retry"],
       [".sys-player-status", "status"],
@@ -1230,7 +1230,7 @@ test("System/Player the pills a phone's bar hides stay in the accessibility tree
   const rated = await phoneBar(page, BAR_STATES.ratemixstale);
   await expect(rated).toHaveAttribute("data-fit", "7");
   await expect(
-    page.getByRole("status", { name: "Playback speed 2×" }),
+    page.getByRole("button", { name: "Playback speed, 2×" }),
   ).toHaveCount(1);
 });
 
@@ -1266,13 +1266,13 @@ test("System/Player under 22 rem at 150% text the pills, the cuts and the rate s
     360,
   );
   await expect(host.locator(".sys-player-mix")).toHaveCount(1);
-  await expect(host.locator(".sys-player-rate")).toHaveCount(1);
+  await expect(host.locator(".sys-player-speed")).toHaveCount(1);
   const tree = await host.ariaSnapshot();
   for (const name of [
     "Following Rosa",
     "Updating mix",
     "Mix out of date",
-    "Playback speed 2×",
+    "Playback speed, 2×",
     "−4 min 10 s",
   ])
     expect(tree, name).toContain(name);
@@ -1460,8 +1460,8 @@ test("System/Player in a short frame the rate keeps its name and takes no room (
   await foldedPills(
     page,
     BAR_STATES.ratemixstale,
-    ["Playback speed 2×", "Updating mix", "Mix out of date"],
-    [".sys-player-rate", ".sys-player-mix", ".sys-player-status"],
+    ["Playback speed, 2×", "Updating mix", "Mix out of date"],
+    [".sys-player-speed", ".sys-player-mix", ".sys-player-status"],
   );
 });
 

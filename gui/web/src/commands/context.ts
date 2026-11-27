@@ -12,6 +12,10 @@ import {
 } from "../shareMode";
 import type { AfterCut, AfterCutDirection } from "../state/afterCutSlice";
 import { useDawStore } from "../state/dawStore";
+import {
+  playbackSpeedAvailable,
+  SPEED_UNAVAILABLE_REASON,
+} from "../state/playbackSpeed";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import type { DawStore } from "../state/types";
@@ -59,6 +63,8 @@ export type CommandContext = {
   /** Stages the open link's role may enter (all five for the host). */
   allowedStages: readonly StageId[];
   hasProject: boolean;
+  /** The open link plays through elements, so a chosen speed keeps pitch (false on a live Editor link). */
+  playbackSpeedAvailable: boolean;
   historyAvailability: HistoryAvailability;
   fixTextAvailability: FixTextAvailability;
   shellBreakpoint: string;
@@ -193,6 +199,7 @@ export function buildCommandContext(
     canManageProjects: canManageProjects(s.projectPath),
     allowedStages: stagesForRole(stageRoleOf(s.guestMode)),
     hasProject: s.project != null,
+    playbackSpeedAvailable: playbackSpeedAvailable(s.projectPath),
     historyAvailability: historyAvailability(s),
     fixTextAvailability: fixTextAvailability(s),
     shellBreakpoint: s.shellBreakpoint,
@@ -341,6 +348,10 @@ export function evaluateWhen(
       return ctx.hasProject
         ? { ok: true }
         : { ok: false, reason: "No project loaded" };
+    case "playbackSpeedAvailable":
+      return ctx.playbackSpeedAvailable
+        ? { ok: true }
+        : { ok: false, reason: SPEED_UNAVAILABLE_REASON };
     case "timelineSurface":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
@@ -562,6 +573,7 @@ export function gateNeverRuns(
     case "hasInspectorSelection":
     case "afterCutActive":
     case "following":
+    case "playbackSpeedAvailable":
     case "toastShown":
       return false;
     default: {

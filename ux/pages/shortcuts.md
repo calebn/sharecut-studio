@@ -23,7 +23,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused; Shift+Space is Hear |
 | `K` | Pause and return (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone pauses and returns; Mod+K splits at the playhead |
 | `J` | Jump back (`transport.shuttleBack`) | Always (when not typing in a field or on a focused Scrub field) | Jumps back 3, 6, 12 s on quick repeats; no reverse audio |
-| `L` | Speed up (1×/2×/4×) (`transport.shuttleForward`) | Always (when not typing in a field or on a focused Scrub field) | Plays at 1×, then 2× and 4× on repeats; J, K or Space returns to 1× |
+| `L` | Speed up (your speed, 2×, 4×) (`transport.shuttleForward`) | Always (when not typing in a field or on a focused Scrub field) | Plays at your playback speed, then 2× and 4× on repeats; J, K or Space returns to it |
+| `Shift+.` | Playback speed (`transport.cyclePlaybackSpeed`) | Host, or a review link that plays a published version (when not typing in a field or on a focused Scrub field) | Shift+.: cycles 1×, 1.25×, 1.5×, 2× — Bare . opens the Action bar's More menu on the Edit stage |
 | `A` | Hear the original while held (`transport.hearOriginal`) | editStage | A with no suggestion selected: hold to hear the original |
 | Palette only | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Palette only: rebuild stems/premix when host or Docs Editor |
 
@@ -80,7 +81,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `B` | Hear after (`edit.hearAfter`) | editStage | B: hear the suggestion applied |
 | `X` | Keep (`edit.keep`) | editStage | X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard |
 | `I` | Inspect (`edit.inspect`) | editStage | I: open or close the Inspector for the selection; Mod+I is Import |
-| `.` | More (`edit.more`) | editStage | .: open the Action bar's More menu |
+| `.` | More (`edit.more`) | editStage | .: open the Action bar's More menu; Shift+. is Playback speed |
 | `C` | Add comment (`comment.draftAt`) | Host or a link that can comment | C: comment on the selection, else at the playhead; Mod+C is Copy |
 | `Shift+C` | Add chapter at playhead (`edit.addChapter`) | Loaded host project | Shift+C: add a chapter at the playhead |
 | Palette only | New track (`track.add`) | editStageIngest | Palette only |

@@ -854,6 +854,102 @@ describe("exact raw source preview", () => {
   });
 });
 
+describe("useAudioTransport playback speed (#3816)", () => {
+  beforeEach(() => {
+    FakeAudio.instances = [];
+    vi.stubGlobal("Audio", FakeAudio);
+    useDawStore.getState().hydrate("/tmp/speed.json", minimalProject());
+    useDawStore.getState().setAuditionMode("mix");
+    useDawStore
+      .getState()
+      .setProject(mixProject([sampleTrack({ id: "host" })]));
+  });
+  afterEach(() => {
+    act(() => useDawStore.getState().setIsPlaying(false));
+    vi.unstubAllGlobals();
+    useDawStore.setState({ chosenPlaybackRate: 1, playbackRate: 1 });
+    localStorage.clear();
+  });
+
+  type Pitched = FakeAudio & {
+    preservesPitch?: boolean;
+    webkitPreservesPitch?: boolean;
+    mozPreservesPitch?: boolean;
+    defaultPlaybackRate?: number;
+  };
+
+  it("plays a new element at the chosen speed with pitch kept", () => {
+    useDawStore.getState().setPlaybackSpeed(1.5);
+    const { unmount } = renderHook(() => useAudioTransport());
+    const player = FakeAudio.instances[0] as Pitched;
+    expect(player.playbackRate).toBe(1.5);
+    expect(player.defaultPlaybackRate).toBe(1.5);
+    expect(player.preservesPitch).toBe(true);
+    expect(player.webkitPreservesPitch).toBe(true);
+    expect(player.mozPreservesPitch).toBe(true);
+    unmount();
+  });
+
+  it("follows a speed change and a scan on a live element, and returns after the scan", () => {
+    const { unmount } = renderHook(() => useAudioTransport());
+    const player = FakeAudio.instances[0] as Pitched;
+    expect(player.playbackRate).toBe(1);
+    act(() => useDawStore.getState().setPlaybackSpeed(2));
+    expect(player.playbackRate).toBe(2);
+    act(() => useDawStore.getState().setPlaybackSpeed(1.25));
+    expect(player.playbackRate).toBe(1.25);
+    expect(player.preservesPitch).toBe(true);
+    act(() => useDawStore.setState({ playbackRate: 4 }));
+    expect(player.playbackRate).toBe(4);
+    act(() => useDawStore.getState().stopPlayback());
+    expect(player.playbackRate).toBe(1.25);
+    unmount();
+  });
+
+  it("pins a source preview to 1x once mounted and while the speed changes", async () => {
+    useDawStore.getState().setPlaybackSpeed(1.5);
+    useDawStore.getState().beginSourcePreview({
+      ownerId: "word",
+      media: {
+        kind: "raw",
+        trackId: "host",
+        sourceId: "extra",
+        cacheKey: "version",
+      },
+      startSec: 2,
+      endSec: 3,
+    });
+    const { unmount } = renderHook(() => useAudioTransport());
+    await act(async () => {});
+    const player = FakeAudio.instances[0] as Pitched;
+    expect(player.src).toContain("source_id=extra");
+    expect(player.playbackRate).toBe(1);
+    expect(player.preservesPitch).toBe(true);
+    act(() => useDawStore.getState().setPlaybackSpeed(2));
+    expect(player.playbackRate).toBe(1);
+    unmount();
+  });
+
+  it("returns the mix to the chosen speed once a source preview ends", async () => {
+    useDawStore.getState().setPlaybackSpeed(1.5);
+    useDawStore.getState().beginSourcePreview({
+      ownerId: "word",
+      media: { kind: "rendered", url: "/audio/preview.wav" },
+      startSec: 0,
+      endSec: 1,
+    } as never);
+    const { unmount } = renderHook(() => useAudioTransport());
+    await act(async () => {});
+    expect(FakeAudio.instances[0]!.playbackRate).toBe(1);
+    act(() => useDawStore.getState().releaseSourcePreview("word"));
+    await act(async () => {});
+    const live = FakeAudio.instances.filter((el) => el.src);
+    expect(live.length).toBeGreaterThan(0);
+    expect(live.every((el) => el.playbackRate === 1.5)).toBe(true);
+    unmount();
+  });
+});
+
 describe("rendered boundary source preview", () => {
   afterEach(() => vi.unstubAllGlobals());
 

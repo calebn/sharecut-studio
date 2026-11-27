@@ -12,6 +12,8 @@ import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { paletteCommands } from "./commandPaletteRows";
 import hostRows from "./hostPaletteRows.json";
 
+const SPEED_REASON = "Speed isn't available on live-episode links yet.";
+
 const ROLES = {
   host: { projectPath: "/tmp/ep", guestMode: null, caps: null },
   editor: {
@@ -93,6 +95,7 @@ const VIEWER_ROWS = [
   ["transport.stop", null],
   ["transport.shuttleBack", null],
   ["transport.shuttleForward", null],
+  ["transport.cyclePlaybackSpeed", SPEED_REASON],
   ["stage.review", null],
   ["stage.handoff", null],
   ["navigation.nudgePlayheadBack", null],
@@ -112,6 +115,7 @@ const COMMENTER_ROWS = [
   ["transport.stop", null],
   ["transport.shuttleBack", null],
   ["transport.shuttleForward", null],
+  ["transport.cyclePlaybackSpeed", SPEED_REASON],
   ["stage.review", null],
   ["stage.handoff", null],
   ["navigation.nudgePlayheadBack", null],

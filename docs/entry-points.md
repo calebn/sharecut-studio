@@ -30,6 +30,8 @@ Rules:
 
 **Touch column:** `surfaces.touch` names the touch gestures that run a command: `long-press-arm-drag`, `long-press-empty` (the create menu), `hold-nudge`, `double-tap`, `swipe-left`, `pinch` and `two-finger-tap`. The vocabulary is `TOUCH_GESTURES` in [`gui/web/src/timeline/inputContract.ts`](../gui/web/src/timeline/inputContract.ts), the touch grammar's single source; `make generated-check` keeps the schema's enum equal to it and refuses a touch value on a row without a command. Which commands carry which gesture is derived, not hand-kept: `inputContract.manifest.test.ts` fails unless each row's column equals what the create menu, each hit kind's `command` and the palette's Gestures rows say runs it. The docs catalog shows it as the Touch column.
 
+**Playback speed exemption:** the player's speed button and Shift+. (`transport.cyclePlaybackSpeed`, capability `daw.transport.playbackSpeed`, effect `view`) set a listening preference kept on one device. It has no MCP tool or CLI command because an agent has no ears and the speed is never saved in the episode; chosen speed also applies to timeline playback and play-until auditions; source-preview Hear, seam Hear and selected-range Hear stay at 1×.
+
 **Long-press exemption:** the mobile Long-press gesture opens different existing selection or correction actions according to its target (clip, comment, or transcript word). It has no single command ID. The palette's Gestures group keeps that behavior as a documented exception; comment resolution has the command ID `comment.resolve` and capability `daw.review.resolveComment`.
 
 ## Adding a new capability

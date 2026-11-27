@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { largeText } from "../storybook/largeText";
 import {
   portaledOverlayParameters,
   viewportStoryParameters,
@@ -39,6 +40,7 @@ const meta: Meta<typeof Player> = {
     peaks,
     ticks,
     playhead: 0.23,
+    speed: { rate: 1, next: 1.25, onCycle: fn() },
     onPlayPause: fn(),
     onSkip: fn(),
     onHearOriginal: fn(),
@@ -62,7 +64,7 @@ const meta: Meta<typeof Player> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Bar form: one row, 56 px at default text. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. The status text and a name or detail inside a pill are cut short with an ellipsis. Fixed container rules act first: at 60rem and under the status beside an Audio error is hidden visually; at 50rem and under a Status pill is its glyph, the Following detail goes and, in an Audio error, a host's Comment goes; at 40rem and under the skip buttons and the \"/ total\" go; at 22rem and under A and B, a host's Comment and Stop following go and the pills, the cuts and the rate are hidden visually; at 14rem and under the clock is smaller. On top of them the bar measures itself and, only as far as it takes to avoid an overlap, drops the \"/ total\", the Following detail, the Status pills' text, the skip buttons, the cuts, the hear menu's chevron and then the other pills (Following, Solo, Updating mix, the rate) and the status, in that order, so a bar with fewer pills keeps more. Pills, cuts and the rate hidden visually keep their name for assistive tech; the skip buttons, Stop following, A and B and a host's Comment leave the bar whole and are in the expanded form or the hear menu. Play and the clock are never given up. Where A and B are not drawn (22rem and under, or in a short frame) the hear menu's chevron stays at every level. In a short frame the bar is one touch-height row: the skip buttons, A and B, Stop following and a host's Comment are removed, and the pills, the cuts, the rate and the status are hidden visually and keep their names. At 22rem and under the bar draws only that chevron, an Audio error with Retry and a guest's Comment beside Play and the clock; in an Audio error a 360 or 390 px phone at 200% text also loses the Comment and Retry, and the Audio error pill is hidden visually and keeps its name, and Retry is in the expanded form. The expanded form adds a 4rem Overview strip, a 4rem Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
+          "Bar form: one row, 56 px at default text. Time, cuts and the speed button on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. The speed button is one button that steps 1×, 1.25×, 1.5×, 2× and wraps; its name is \"Playback speed, 1.5×\", the change is announced, and while a shuttle scan runs it shows the scan's rate with an accent border and a press ends the scan on the next preset. It is aria-disabled, never removed, with its reason as text beside it, while following someone (\"Following Rosa. Speed follows them.\") and on a link to the live episode (\"Speed isn't available on live-episode links yet.\"). The phone bar form has no speed button: tap the time to expand. The status text and a name or detail inside a pill are cut short with an ellipsis. Fixed container rules act first: at 60rem and under the status beside an Audio error is hidden visually; at 50rem and under a Status pill is its glyph, the Following detail goes and, in an Audio error, a host's Comment goes; at 40rem and under the skip buttons and the \"/ total\" go; at 22rem and under A and B, a host's Comment, Stop following and the speed button go and the pills, the cuts and the speed reason are hidden visually; at 14rem and under the clock is smaller. On top of them the bar measures itself and, only as far as it takes to avoid an overlap, drops the \"/ total\", the Following detail, the Status pills' text, the skip buttons, the cuts, the hear menu's chevron and then the other pills (Following, Solo, Updating mix), the speed button and the status, in that order, so a bar with fewer pills keeps more. Pills, cuts and the speed reason hidden visually keep their name for assistive tech; the skip buttons, Stop following, the speed button, A and B and a host's Comment leave the bar whole and are in the expanded form or the hear menu. Play and the clock are never given up. Where A and B are not drawn (22rem and under, or in a short frame) the hear menu's chevron stays at every level. In a short frame the bar is one touch-height row: the skip buttons, A and B, Stop following, the speed button and a host's Comment are removed, and the pills, the cuts, the speed reason and the status are hidden visually and keep their names. At 22rem and under the bar draws only that chevron, an Audio error with Retry and a guest's Comment beside Play and the clock; in an Audio error a 360 or 390 px phone at 200% text also loses the Comment and Retry, and the Audio error pill is hidden visually and keeps its name, and Retry is in the expanded form. The expanded form adds a 4rem Overview strip, a 4rem Play, the speed button first in the actions row and the chapter list; on phone a host shows it in a Sheet. The phone Listen dock puts the speed button in the transport row between the Back, Play and Forward cluster and Comment, 44 px on touch; a folded one-row dock drops it.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
       },
     },
   },
@@ -262,13 +264,127 @@ export const ExpandedGuest: Story = {
   },
 };
 
-/** The bar gives the Playback rate up on a narrow phone; the expanded Player always shows it. */
-export const ExpandedRate: Story = {
-  args: { form: "expanded", rate: 1.5 },
+/** The expanded Player always has the speed button, first in the actions row; the bar gives it up on a narrow phone. */
+export const ExpandedSpeed: Story = {
+  render: function Render(args) {
+    const [rate, setRate] = useState(1.5);
+    const order = [1, 1.25, 1.5, 2];
+    return (
+      <Player
+        {...args}
+        speed={{
+          rate,
+          next: order[(order.indexOf(rate) + 1) % order.length]!,
+          onCycle: () =>
+            setRate(order[(order.indexOf(rate) + 1) % order.length]!),
+        }}
+      />
+    );
+  },
+  args: { form: "expanded" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "Playback speed, 1.5×" });
+    await expect(button).toBeVisible();
+    await expect(button).toHaveAttribute(
+      "title",
+      "Playback speed 1.5×. Next: 2×",
+    );
+    await userEvent.click(button);
+    await expect(
+      canvas.getByRole("button", { name: "Playback speed, 2×" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: /^Playback speed/ }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Playback speed, 1×" }),
+    ).toBeVisible();
+  },
+};
+
+export const BarSpeed: Story = {
+  args: { speed: { rate: 1.5, next: 2, onCycle: fn() } },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Playback speed, 1.5×" }),
+    );
+    await expect(args.speed?.onCycle).toHaveBeenCalledOnce();
+  },
+};
+
+/** A shuttle scan above the chosen speed: the button shows its rate with the accent border. */
+export const SpeedScan: Story = {
+  args: {
+    form: "expanded",
+    playing: true,
+    speed: { rate: 4, next: 2, scan: true, onCycle: fn() },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", { name: "Playback speed, 4×" }),
+    ).toHaveAttribute("data-scan");
+  },
+};
+
+/** While following, the button stays focusable (aria-disabled) with the reason beside it. */
+export const SpeedFollowing: Story = {
+  args: {
+    form: "expanded",
+    following: { name: "Rosa", colorIndex: 1 },
+    onUnfollow: fn(),
+    speed: {
+      rate: 1,
+      next: 1.25,
+      disabledReason: "Following Rosa. Speed follows them.",
+      onCycle: fn(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "Playback speed, 1×" });
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(button).toHaveAccessibleDescription(
+      "Following Rosa. Speed follows them.",
+    );
+    await expect(
+      canvas.getByText("Following Rosa. Speed follows them."),
+    ).toBeVisible();
+  },
+};
+
+/** An Editor link to the live episode plays through the Web Audio proxy, which would shift pitch: speed waits for slice 2. */
+export const SpeedLiveEpisode: Story = {
+  args: {
+    form: "expanded",
+    guest: true,
+    speed: {
+      rate: 1,
+      next: 1.25,
+      disabledReason: "Speed isn't available on live-episode links yet.",
+      onCycle: fn(),
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("status", { name: "Playback speed 1.5×" }),
+      canvas.getByRole("button", { name: "Playback speed, 1×" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    await expect(
+      canvas.getByText("Speed isn't available on live-episode links yet."),
+    ).toBeVisible();
+  },
+};
+
+export const ExpandedSpeedLargeText: Story = {
+  args: { form: "expanded", speed: { rate: 1.25, next: 1.5, onCycle: fn() } },
+  beforeEach: largeText,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", {
+        name: "Playback speed, 1.25×",
+      }),
     ).toBeVisible();
   },
 };
@@ -291,6 +407,7 @@ export const Dock: Story = {
     onChapters: fn(),
     onSeek: fn(),
     time: "1:26",
+    speed: { rate: 1.5, next: 2, onCycle: fn() },
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
@@ -302,6 +419,7 @@ export const Dock: Story = {
       "Back 15 seconds",
       "Play",
       "Forward 15 seconds",
+      "Playback speed, 1.5×",
       "Comment at 1:26",
     ])
       await expect(canvas.getByRole("button", { name })).toBeVisible();
@@ -312,6 +430,52 @@ export const Dock: Story = {
       canvas.getByRole("button", { name: "Comment at 1:26" }),
     );
     await expect(args.onComment).toHaveBeenCalledOnce();
+  },
+};
+
+/** A Viewer has no Comment: the speed button takes the right-hand slot. */
+export const DockViewer: Story = {
+  args: {
+    form: "dock",
+    guest: true,
+    onChapters: fn(),
+    onComment: undefined,
+    onSeek: fn(),
+    time: "1:26",
+    speed: { rate: 1.25, next: 1.5, onCycle: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: /^Comment/ })).toBeNull();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Playback speed, 1.25×" }),
+    );
+    await expect(args.speed?.onCycle).toHaveBeenCalledOnce();
+  },
+};
+
+/** While following, the dock shows the reason in the readout row. */
+export const DockFollowing: Story = {
+  args: {
+    form: "dock",
+    guest: true,
+    onChapters: fn(),
+    onSeek: fn(),
+    time: "1:26",
+    following: { name: "Rosa", colorIndex: 1, detail: "Listening in Mix" },
+    onUnfollow: fn(),
+    speed: {
+      rate: 1,
+      next: 1.25,
+      disabledReason: "Following Rosa. Speed follows them.",
+      onCycle: fn(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Playback speed, 1×" }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 };
 
