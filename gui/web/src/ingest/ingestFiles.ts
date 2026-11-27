@@ -193,7 +193,9 @@ export async function ingestFiles(
             clipCount:
               current.project?.clips?.tracks?.[ingestTarget.id]?.length ?? 0,
           }));
-      current.announceStatus(`Importing ${list.length} file(s)…`);
+      current.announceStatus(
+        `Importing ${list.length} file(s)…${refused.length > 0 ? ` ${refusalLine(refused)}` : ""}`,
+      );
       if (ingestTarget.kind === "track") {
         const first = list[0]!;
         const uploaded = await uploadMediaFile(projectPath, first);
@@ -248,14 +250,6 @@ export async function ingestFiles(
     await enqueueReplacement(projectPath, ingestTarget.id, run);
   } else {
     await run(false);
-  }
-  if (
-    refused.length > 0 &&
-    useDawStore.getState().projectPath === projectPath
-  ) {
-    useDawStore
-      .getState()
-      .announceStatus(refusalLine(refused), { tone: "error" });
   }
 }
 

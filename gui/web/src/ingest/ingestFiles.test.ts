@@ -79,14 +79,47 @@ describe("ingestFiles", () => {
     const good = new File(["RIFF...."], "good.wav", { type: "audio/wav" });
     const bad = new File(["hello"], "notes.txt", { type: "text/plain" });
 
+    const seen: string[] = [];
+    const stop = useDawStore.subscribe((state) => {
+      seen.push(state.statusAnnouncement ?? "");
+    });
+
     await ingestFiles([bad, good], { kind: "new" });
+    stop();
 
     expect(addTrackMock).toHaveBeenCalledTimes(1);
     expect(addTrackMock.mock.calls[0]?.[1]).toMatchObject({ track_id: "good" });
     expect(uploadMock).toHaveBeenCalledTimes(1);
-    expect(useDawStore.getState().statusAnnouncement).toContain(
-      "notes.txt is not an audio file.",
+    expect(
+      seen.some((line) => line.includes("notes.txt is not an audio file.")),
+    ).toBe(true);
+    expect(useDawStore.getState().statusAnnouncement).toMatch(/^Added /);
+  });
+
+  it("keeps the failure line when a mixed batch's audio file is refused by the server", async () => {
+    addTrackMock.mockResolvedValue({});
+    uploadMock.mockRejectedValue(new Error("unsupported audio format"));
+    refreshMock.mockResolvedValue(minimalProject());
+    const good = new File(["RIFF...."], "good.wav", { type: "audio/wav" });
+    const bad = new File(["hello"], "notes.txt", { type: "text/plain" });
+
+    await ingestFiles([bad, good], { kind: "new" });
+
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Import failed: unsupported audio format",
     );
+  });
+
+  it("says how many of several non-audio files were refused", async () => {
+    const a = new File(["a"], "a.txt", { type: "text/plain" });
+    const b = new File(["b"], "b.pdf", { type: "application/pdf" });
+
+    await ingestFiles([a, b], { kind: "new" });
+
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "2 of those files are not audio. WAV, MP3, M4A, FLAC, AIFF and OGG work.",
+    );
+    expect(addTrackMock).not.toHaveBeenCalled();
   });
 
   it("refreshes the project after a failed import so files that landed show", async () => {
