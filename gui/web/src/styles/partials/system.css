@@ -1820,16 +1820,19 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
       "chapters cluster cluster comment";
   }
 
-  .sys-listen-dock:not(:has(.sys-listen-dock-comment)) .sys-listen-dock-transport {
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment))
+    .sys-listen-dock-transport {
     display: contents;
   }
 
-  .sys-listen-dock:not(:has(.sys-listen-dock-comment)) .sys-listen-dock-chapters {
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment))
+    .sys-listen-dock-chapters {
     grid-area: chapters;
     margin-inline-end: 0;
   }
 
-  .sys-listen-dock:not(:has(.sys-listen-dock-comment)) .sys-listen-dock-cluster {
+  .sys-listen-dock:not(:has(.sys-listen-dock-comment))
+    .sys-listen-dock-cluster {
     grid-area: cluster;
     justify-self: center;
   }
