@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { SessionTakes } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { applyDocumentSnapshot } from "../../document/applyDocumentUpdate";
@@ -22,6 +23,7 @@ import {
   minimalProject,
   pendingEditView,
   sampleTrack,
+  sessionSuggestionView,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { CombinedUtterance } from "../../types/project";
@@ -32,6 +34,8 @@ const wire = vi.hoisted(() => ({
   detail: vi.fn(),
   correct: vi.fn(),
   approve: vi.fn(),
+  acceptSession: vi.fn(),
+  sessionTakes: vi.fn(),
 }));
 vi.mock("../../services/offlineQueue/offlineAttention", () => ({
   useOfflineAttention: () => ({
@@ -54,6 +58,8 @@ vi.mock("../../api", async (original) => ({
   loadTranscriptCheck: async () => null,
   correctTranscriptWord: wire.correct,
   approveEdits: wire.approve,
+  acceptSessionSuggestionCommand: wire.acceptSession,
+  loadSessionTakes: wire.sessionTakes,
 }));
 
 let path = "";
@@ -905,4 +911,74 @@ it("releases a held cut when the same pending edit clears its unsure words", asy
 
   publish(project(), 3);
   expect(why()).toEqual(original);
+});
+
+it("drops a removed session's confirmation and take details before its id returns", async () => {
+  const staged = project();
+  staged.session_suggestions = [
+    sessionSuggestionView({
+      kind: "replace",
+      at_sec: null,
+      from_sec: 1,
+      to_sec: 2,
+      take_count: 2,
+      take_indexes: [0, 1],
+    }),
+  ];
+  const nextDetails = deferred<SessionTakes>();
+  wire.sessionTakes
+    .mockResolvedValueOnce({
+      suggestion_id: "ss-1",
+      kind: "replace",
+      selectable: true,
+      selected_take: null,
+      default_take: 1,
+      takes: [
+        {
+          take_index: 1,
+          duration_s: 1,
+          word_count: 3,
+          speech_text: null,
+          chosen: false,
+          default: true,
+          acceptable: true,
+          refusal: null,
+        },
+      ],
+    } satisfies SessionTakes)
+    .mockReturnValueOnce(nextDetails.promise);
+  wire.acceptSession.mockResolvedValueOnce({
+    needs_confirmation: { message: "Confirm", speech: { tracks: [] } },
+  });
+
+  publish(staged, 2);
+  const view = renderHook(() => useReviewQueue());
+  const content = () => {
+    const props = view.result.current.stageProps;
+    const row = props.items.find((item) => item.id === "session:ss-1");
+    return row ? props.content(row) : undefined;
+  };
+
+  act(() => view.result.current.stageProps.onSelect("session:ss-1"));
+  await waitFor(() =>
+    expect(content()?.takes?.takes[1]?.words).toBe("3 words"),
+  );
+  await act(async () => {
+    await view.result.current.stageProps.onDecide({
+      ids: ["session:ss-1"],
+      result: "applied",
+    });
+  });
+  expect(content()?.confirm?.message).toBe(
+    "This also removes speech from another track.",
+  );
+
+  publish({ ...staged, session_suggestions: [] }, 3);
+  expect(content()).toBeUndefined();
+  publish(staged, 4);
+  act(() => view.result.current.stageProps.onSelect("session:ss-1"));
+
+  expect(wire.sessionTakes).toHaveBeenCalledTimes(2);
+  expect(content()?.confirm).toBeUndefined();
+  expect(content()?.takes?.takes[1]?.words).toBeUndefined();
 });
