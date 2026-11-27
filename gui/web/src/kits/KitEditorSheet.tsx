@@ -221,7 +221,7 @@ export function KitEditorSheet({
       onClose={close}
       title={NEW_KIT_LABEL}
       detent="full"
-      initialFocusRef={nameField}
+      initialFocusRef={phone ? undefined : nameField}
       footer={
         <div className="kit-editor-actions">
           <Button

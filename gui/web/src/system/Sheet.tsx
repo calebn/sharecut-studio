@@ -51,7 +51,7 @@ export type SheetProps = {
   onDetentChange?: (detent: DrawerDetent) => void;
   /** Extra class on the Dialog or BottomSheet panel, for a sheet with its own width. */
   panelClassName?: string;
-  /** Centered and end forms only: the control that takes focus on open, instead of Close. */
+  /** Centered, end and bottom forms: the control that takes focus on open, instead of Close. Wins over `focusTitleOnOpen`. */
   initialFocusRef?: RefObject<HTMLElement | null>;
   focusTitleOnOpen?: boolean;
 };
@@ -200,6 +200,7 @@ export function Sheet({
         backgroundPolicy="interactive"
         title={heading}
         focusTitleOnOpen={focusTitleOnOpen}
+        initialFocusRef={step ? undefined : initialFocusRef}
         back={
           step
             ? {
