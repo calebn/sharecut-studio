@@ -52,6 +52,46 @@ function TrackCard({ phone = false }: { phone?: boolean }) {
   );
 }
 
+const DUCK = "Duck music under speech";
+const DUCK_WAIT = { timeout: 5000 };
+
+/** The host's reply to a ducking dry run: one music track, with `earlierDips` old dips to replace. */
+function duckReply(changed: boolean, earlierDips = 0) {
+  return {
+    "POST /api/document/command": {
+      command: {
+        payload: {
+          result: {
+            plan_token: "plan-1",
+            depth_db: -18,
+            dialogue_track_ids: ["dialogue"],
+            tracks: [
+              {
+                track_id: MIRA,
+                changed,
+                regions: 3,
+                points: 12,
+                replaced_generated: earlierDips,
+                coarsened: false,
+              },
+            ],
+            warnings: [],
+            dry_run: true,
+            applied: false,
+          },
+        },
+      },
+    },
+  };
+}
+
+const musicProject = () =>
+  episode({
+    tracks: episode().tracks.map((track) =>
+      track.id === MIRA ? { ...track, role: "music" } : track,
+    ),
+  });
+
 const meta: Meta = {
   title: "Stages/Edit/TrackInspector",
   beforeEach: episodeBeforeEach,
@@ -94,6 +134,7 @@ export const Track: Story = {
       "aria-checked",
       "true",
     );
+    await expect(canvas.queryByRole("button", { name: DUCK })).toBeNull();
   },
 };
 
@@ -125,6 +166,141 @@ export const TrackMusic: Story = {
   },
 };
 
+export const TrackMusicDuckReady: Story = {
+  parameters: {
+    episode: {
+      project: musicProject(),
+      role: "host",
+      selection: selections.track,
+      responses: duckReply(true),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText(
+        "Lowers 1 music track by 18 dB while people speak. Your own volume points stay.",
+        {},
+        DUCK_WAIT,
+      ),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: DUCK })).toBeEnabled();
+  },
+};
+
+export const TrackMusicDuckStale: Story = {
+  parameters: {
+    episode: {
+      project: musicProject(),
+      role: "host",
+      selection: selections.track,
+      responses: duckReply(true, 4),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText(
+        "Ducking may be out of date. Duck again.",
+        { selector: "p" },
+        DUCK_WAIT,
+      ),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Duck again" }),
+    ).toBeEnabled();
+  },
+};
+
+export const TrackMusicDuckCurrent: Story = {
+  parameters: {
+    episode: {
+      project: musicProject(),
+      role: "host",
+      selection: selections.track,
+      responses: duckReply(false, 4),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText(
+        "Music already follows the speech.",
+        { selector: "p" },
+        DUCK_WAIT,
+      ),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: DUCK })).toBeDisabled();
+  },
+};
+
+export const TrackMusicDuckChecking: Story = {
+  parameters: {
+    episode: {
+      project: musicProject(),
+      role: "host",
+      selection: selections.track,
+      hang: ["POST /api/document/command"],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText(
+        "Checking your music tracks...",
+        { selector: "p" },
+        DUCK_WAIT,
+      ),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: DUCK })).toBeDisabled();
+  },
+};
+
+export const TrackMusicDuckUnreachable: Story = {
+  parameters: {
+    episode: {
+      project: musicProject(),
+      role: "host",
+      selection: selections.track,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText(
+        "Could not check the music tracks. You can still duck.",
+        {},
+        DUCK_WAIT,
+      ),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: DUCK })).toBeEnabled();
+  },
+};
+
+export const TrackMusicDuckPhone: Story = {
+  render: () => <TrackCard phone />,
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+  parameters: {
+    episode: {
+      project: musicProject(),
+      role: "host",
+      selection: selections.track,
+      responses: duckReply(true),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText(
+        "Lowers 1 music track by 18 dB while people speak. Your own volume points stay.",
+        {},
+        DUCK_WAIT,
+      ),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: DUCK })).toBeEnabled();
+  },
+};
+
 export const TrackPhone: Story = {
   render: () => <TrackCard phone />,
   globals: { viewport: { value: "mobile360", isRotated: false } },
@@ -150,6 +326,7 @@ export const TrackReadOnly: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Remove track" }),
     ).toBeNull();
+    await expect(canvas.queryByRole("button", { name: DUCK })).toBeNull();
   },
 };
 
