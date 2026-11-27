@@ -36,7 +36,9 @@ is still connected, because Studio keeps no sessions for it, and it remembers
 only the time of the latest successful request until Studio restarts. Any local
 program that sends a valid request counts, not only an AI app. If this Studio
 cannot accept connections from other apps, the dialog says so and shows no
-address.
+address. If it becomes unavailable while the dialog is open, Studio either
+moves focus to the explanation when the focused control disappears or
+announces the change while focus stays on a control such as Setup guide.
 
 ## Set up a local command-line server
 

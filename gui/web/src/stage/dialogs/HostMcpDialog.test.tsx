@@ -757,6 +757,7 @@ describe("HostMcpDialog last-used line", () => {
       expect(document.activeElement).toBe(
         screen.getByText(UNAVAILABLE_MESSAGE),
       );
+      expect(live().textContent).toBe("");
       const calls = activityMock.mock.calls.length;
       await advance(12_000);
       expect(activityMock.mock.calls.length).toBe(calls);
@@ -774,18 +775,26 @@ describe("HostMcpDialog last-used line", () => {
     });
   });
 
-  it("does not speak a move to unavailable; focus lands on its paragraph", async () => {
-    activityMock.mockResolvedValueOnce(NEVER);
-    activityMock.mockResolvedValue({
-      mounted: false,
-      last_request_at: null,
-      age_seconds: null,
-    });
-    await openDialog();
-    await advance(3000);
-    expect(live().textContent).toBe("");
-    expect(screen.getByText(UNAVAILABLE_MESSAGE)).toBeInTheDocument();
-  });
+  it.each(["Close", "Setup guide"])(
+    "announces a move to unavailable without moving focus from %s",
+    async (name) => {
+      activityMock.mockResolvedValueOnce(NEVER);
+      activityMock.mockResolvedValue({
+        mounted: false,
+        last_request_at: null,
+        age_seconds: null,
+      });
+      await openDialog();
+      const control =
+        name === "Close"
+          ? screen.getByRole("button", { name })
+          : screen.getByRole("link", { name: /Setup guide/ });
+      act(() => control.focus());
+      await advance(ACTIVITY_POLL_MS);
+      expect(control).toHaveFocus();
+      expect(live()).toHaveTextContent(UNAVAILABLE_MESSAGE);
+    },
+  );
 
   it("asks nothing while closed, and starts blank when reopened", async () => {
     const { rerender } = render(
