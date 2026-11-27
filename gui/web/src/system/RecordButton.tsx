@@ -41,7 +41,8 @@ const RING_RADIUS = 30;
 /**
  * The one control that records. A record-red circle starts or resumes; while live
  * it is a square in a ring, and holding it stops the take as the ring fills.
- * Keyboard and assistive tech cannot hold, so Enter or Space asks first.
+ * Keyboard and assistive tech cannot hold, so Enter or Space asks first. A small
+ * caption under the live button says to hold; a tap on it emphasises the caption.
  */
 export function RecordButton({
   face,
@@ -62,8 +63,16 @@ export function RecordButton({
     setHolding(false);
     setConfirming(false);
   }
-  const hintId = useId();
+  const descId = useId();
   const reason = disabledReason ?? (busy ? BUSY_REASON : undefined);
+  const caption = face === "live" && reason === undefined;
+  const nudge = hint.shown && caption;
+  const hideHint = hint.hide;
+
+  // The nudge never outlives its moment: a new face or reason starts clean.
+  useEffect(() => {
+    hideHint();
+  }, [face, reason, hideHint]);
 
   useEffect(
     () => () => {
@@ -121,6 +130,9 @@ export function RecordButton({
     }
     window.clearTimeout(timer.current);
     setHolding(false);
+    if (reasonRef.current !== undefined) {
+      return;
+    }
     hint.show();
   }
 
@@ -142,7 +154,7 @@ export function RecordButton({
         data-face={face}
         data-holding={holding || undefined}
         aria-label={NAMES[face]}
-        aria-describedby={face === "live" ? hintId : undefined}
+        aria-describedby={caption ? descId : undefined}
         onClick={face === "live" ? undefined : onStart}
         onPointerDown={press}
         onPointerUp={release}
@@ -184,8 +196,23 @@ export function RecordButton({
         )}
       </button>
       {face === "live" ? (
-        <span id={hintId} className="sys-record-hint" role="status">
-          {hint.shown ? "Hold to stop" : " "}
+        <>
+          <span
+            className="sys-record-hint"
+            aria-hidden="true"
+            data-nudge={nudge || undefined}
+          >
+            {caption ? "Hold to stop" : "\u00A0"}
+          </span>
+          <span className="sr-only" role="status">
+            {nudge ? "Hold to stop" : ""}
+          </span>
+        </>
+      ) : null}
+      {caption ? (
+        <span id={descId} className="sr-only">
+          Press Enter or Space to ask to stop, then confirm. Holding the button
+          stops with a pointer.
         </span>
       ) : null}
       {confirming ? (

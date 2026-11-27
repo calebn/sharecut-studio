@@ -73,10 +73,27 @@
   }
 }
 
+/* The caption is wider than the 4rem Record column; it centres and spills
+   evenly so it never sizes the column or moves the neighbouring controls. */
 .sys-record-hint {
+  display: flex;
+  justify-content: center;
+  inline-size: 4rem;
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
   line-height: 1rem;
+  white-space: nowrap;
+}
+
+.sys-record-hint[data-nudge] {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-record-hint[data-nudge] {
+    animation: nudge-bump var(--motion-state) var(--motion-ease-out);
+  }
 }
 
 .sys-record-confirm {

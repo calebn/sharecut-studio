@@ -24,7 +24,7 @@ const meta: Meta<typeof RecordButton> = {
     docs: {
       ...viewportStoryParameters.docs,
       description: {
-        component: `The one control that records, 64 px round. A record-red circle starts a take or resumes a paused one. While live it is a square in a ring: hold it for ${HOLD_TO_STOP_MS} ms and the ring fills, then the take stops. Letting go early cancels and says "Hold to stop" for two seconds. Keyboard and assistive tech cannot hold, so Enter or Space asks first with Keep recording focused.\n\n**Motion.** The ring fill is a linear transition over the hold time, only when the system allows motion. The stop is timed in code, so it completes the same with reduced motion. Later: a pulse on the live face.`,
+        component: `The one control that records, 64 px round. A record-red circle starts a take or resumes a paused one. While live it is a square in a ring: hold it for ${HOLD_TO_STOP_MS} ms and the ring fills, then the take stops. While live, a small "Hold to stop" caption always shows under it. Letting go early cancels, and the caption turns bold and primary colour for two seconds with a short shake. Keyboard and assistive tech cannot hold, so Enter or Space asks first with Keep recording focused; the button's description says so, and that holding stops with a pointer.\n\n**Motion.** The ring fill is a linear transition over the hold time, only when the system allows motion. The stop is timed in code, so it completes the same with reduced motion. The caption's shake is a short translate bump, only when the system allows motion; reduced-motion users get the colour and weight change without movement. Later: a pulse on the live face.`,
       },
     },
   },
@@ -78,7 +78,42 @@ export const ReleasedEarly: Story = {
       { keys: "[/MouseLeft]" },
     ]);
     await expect(canvas.getByRole("status")).toHaveTextContent("Hold to stop");
+    await expect(
+      canvasElement.querySelector(".sys-record-hint"),
+    ).toHaveAttribute("data-nudge");
     await expect(args.onStop).not.toHaveBeenCalled();
+  },
+};
+
+export const RestingCaption: Story = {
+  args: { face: "live" },
+  play: async ({ canvasElement }) => {
+    const caption = canvasElement.querySelector(".sys-record-hint");
+    await expect(caption).toHaveTextContent("Hold to stop");
+    await expect(caption).not.toHaveAttribute("data-nudge");
+    await expect(
+      within(canvasElement).getByRole("status"),
+    ).toBeEmptyDOMElement();
+  },
+};
+
+export const TapNudge: Story = {
+  args: { face: "live" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "Stop take" });
+    await userEvent.pointer([
+      { keys: "[MouseLeft>]", target: button },
+      { keys: "[/MouseLeft]" },
+    ]);
+    await expect(
+      canvasElement.querySelector(".sys-record-hint"),
+    ).toHaveAttribute("data-nudge");
+    await expect(canvas.getByRole("status")).toHaveTextContent("Hold to stop");
+    const describedBy = button.getAttribute("aria-describedby") ?? "";
+    await expect(
+      canvasElement.ownerDocument.getElementById(describedBy),
+    ).toHaveTextContent("Enter or Space");
   },
 };
 
