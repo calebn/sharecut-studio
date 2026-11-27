@@ -39,7 +39,7 @@ Run `apply_ducking_tool` (`podcast edit duck --project episode.sharecut`). It re
 - `depth_db` omitted is `mix.music_under_vo_db`. Other knobs: `attack_sec`, `hold_sec`, `release_sec`, `min_gap_sec`, `min_speech_sec`. There is no threshold.
 - Fades and your own points are only ever lowered, never raised. Run it again after changing the cut or the settings: earlier generated points are replaced.
 - `pipeline run --only mix_with_music` refreshes a segment lane's stale stem, so it applies a dip made since the last render (the summary says `1 segment lane stem refreshed` or `N segment lane stems refreshed`).
-- Order does not matter: `mix_with_music` keeps the dip and your points and only re-places its four `mix:fade:` points. After a cut or a changed fade length the fade points move and the dip near them is stale (the step summary says so); run ducking again. A mix run no longer deletes a `pan` envelope.
+- Order does not matter: `mix_with_music` keeps the dip and your points and only re-places its four `mix:fade:` points. A cut does not move saved fade or dip points; a changed fade length or stem length makes the mix rerun re-place the fade points, and the dip near them is stale (the step summary says so); run ducking again. A mix run no longer deletes a `pan` envelope.
 - Speech with no transcript does not duck. Listen to a render for the level under speech and the first word.
 
 ## Custom envelopes
