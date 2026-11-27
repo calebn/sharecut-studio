@@ -17,7 +17,7 @@ import yaml
 
 from podcast_mcp import settings
 from podcast_mcp.engines.models import whisper_cpp_models
-from podcast_mcp.util.asset_sources import DownloadProgress, OnProgress
+from podcast_mcp.util.asset_sources import DownloadProgress, OnProgress, notice_sink
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
@@ -513,7 +513,11 @@ def bootstrap_whisper_model(
     else:
         # Intentional download path: the only pinned Whisper download (never local_files_only).
         _, mismatch = download_pinned_snapshot(
-            pin, whisper_cache_dir(), force=force, on_progress=on_progress
+            pin,
+            whisper_cache_dir(),
+            force=force,
+            on_progress=on_progress,
+            on_notice=notice_sink(on_progress),
         )
         if mismatch is not None:
             raise WhisperPinMismatchError(canonical, mismatch)

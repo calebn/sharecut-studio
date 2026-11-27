@@ -68,6 +68,17 @@ class DownloadProgress:
 OnProgress = Callable[[DownloadProgress], None]
 """Receives download progress; may raise ``CancelledProgress`` and must be thread-safe."""
 
+
+def notice_sink(on_progress: OnProgress | None) -> Callable[[str], None] | None:
+    """The ``notice`` method of the object that receives progress, when it has one.
+
+    Bootstrap hands each installer its relay as ``on_progress``; an installer that can tell the
+    person something besides bytes (a download that changed course) forwards it from here.
+    """
+    sink = getattr(on_progress, "notice", None)
+    return sink if callable(sink) else None
+
+
 DOWNLOAD_TASK_ID = "bootstrap.bytes"
 """Progress task id of the model download in flight; its label is the component id."""
 

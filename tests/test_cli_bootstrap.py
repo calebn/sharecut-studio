@@ -451,3 +451,34 @@ def test_bootstrap_warns_when_a_downloaded_model_cannot_load() -> None:
     assert "[ok]" not in result.stdout
     assert "[warn] speaker-ecapa" in result.stderr
     assert "RuntimeError: unsupported opset 99" in result.stderr
+
+
+def test_bootstrap_prints_the_fallback_note_once_before_ok(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from podcast_mcp.util.model_manifest import FALLBACK_NOTICE
+
+    def install(variant, force, on_progress):
+        on_progress.notice(FALLBACK_NOTICE)
+        return {"ok": True, "path": "/stub/rnnoise"}
+
+    only = replace(registry.model_spec("rnnoise"), install=install, probe=None)
+    monkeypatch.setattr(registry, "MODELS", (only,))
+    monkeypatch.setattr("podcast_mcp.cli.setup_cmd.MODELS", registry.MODELS)
+
+    result = runner.invoke(app, ["bootstrap", "--component", "rnnoise"])
+
+    note = f"[note] {only.label}: {FALLBACK_NOTICE}"
+    assert result.exit_code == 0
+    assert result.output.count(note) == 1
+    assert result.output.index(note) < result.output.index("[ok] rnnoise")
+
+
+def test_bootstrap_prints_no_note_when_nothing_fell_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_installers(monkeypatch)
+
+    result = runner.invoke(app, ["bootstrap"])
+
+    assert "[note]" not in result.output

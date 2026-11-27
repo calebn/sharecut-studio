@@ -26,7 +26,7 @@ from podcast_mcp.engines.onnx_session import (
     OnnxOverrideUnsupportedError,
     onnx_override_restriction,
 )
-from podcast_mcp.util.asset_sources import OnProgress
+from podcast_mcp.util.asset_sources import OnProgress, notice_sink
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_manifest import (
     FileManifest,
@@ -271,7 +271,11 @@ def bootstrap_word_aligner(
         raise WordAlignerOverrideError(model.id)
     # Intentional download path: the only word-aligner download (never local_files_only).
     path, mismatch = download_pinned_snapshot(
-        model.pin, word_aligner_cache_dir(), force=force, on_progress=on_progress
+        model.pin,
+        word_aligner_cache_dir(),
+        force=force,
+        on_progress=on_progress,
+        on_notice=notice_sink(on_progress),
     )
     if mismatch is not None:
         raise WordAlignerPinMismatchError(model.id, mismatch)
