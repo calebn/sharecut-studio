@@ -5,12 +5,14 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchHostMcpActivity } from "../../api/hostMcp";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { ApiError } from "../../utils/apiError";
 import { HostMcpDialog } from "./HostMcpDialog";
 import {
+  ACTIVITY_POLL_MS,
   COPY_FAILED_MESSAGE,
   localHostMcpUrl,
   MCP_SETUP_GUIDE_URL,
@@ -802,6 +804,30 @@ describe("HostMcpDialog last-used line", () => {
     rerender(<HostMcpDialog open onClose={() => undefined} hasProject />);
     await act(async () => {});
     expect(line()).toBe("");
+  });
+
+  it("drops the discarded StrictMode read and keeps one polling cadence", async () => {
+    let finishDiscarded: (answer: ReturnType<typeof used>) => void = () =>
+      undefined;
+    activityMock
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finishDiscarded = resolve)),
+      )
+      .mockResolvedValue(NEVER);
+    render(
+      <StrictMode>
+        <HostMcpDialog open onClose={() => undefined} hasProject />
+      </StrictMode>,
+    );
+    await act(async () => {});
+    expect(activityMock).toHaveBeenCalledTimes(2);
+    expect(activityMock.mock.calls[0][0]?.aborted).toBe(true);
+    expect(activityMock.mock.calls[1][0]?.aborted).toBe(false);
+
+    await act(async () => finishDiscarded(used(0)));
+    expect(line()).toBe("No app has used this address since Studio started.");
+    await advance(ACTIVITY_POLL_MS);
+    expect(activityMock).toHaveBeenCalledTimes(3);
   });
 
   it("drops an answer that lands after the dialog closed", async () => {
