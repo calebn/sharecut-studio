@@ -78,11 +78,13 @@ pub const DEBUG_ONLY_VARIABLES: [&str; 2] =
     ["PODCAST_ENGINE_DEBUG_BUILD", "PODCAST_ENGINE_REQUEST_AUDIT"];
 
 /// Variables for the interpreter and engine inside the iOS app: where the bundled standard
-/// library and packages are, and the token `/api/health` asks for. Set once, before any thread.
+/// library and packages are, the token `/api/health` asks for, and the folder of files the app
+/// received from the share sheet. Set once, before any thread.
 /// `debug_build` (from `cfg!(debug_assertions)`) adds the request audit's two variables.
 pub fn ios_engine_environment(
     bundle_dir: &Path,
     boot_token: &str,
+    inbox_dir: &Path,
     debug_build: bool,
 ) -> Vec<(&'static str, OsString)> {
     let mut environment = vec![
@@ -95,6 +97,7 @@ pub fn ios_engine_environment(
         ("PYTHONUTF8", OsString::from("1")),
         ("PODCAST_SIDECAR_BOOT_TOKEN", OsString::from(boot_token)),
         ("PODCAST_GUI_OPENAPI", OsString::from("0")),
+        ("PODCAST_IOS_INBOX_DIR", inbox_dir.as_os_str().to_owned()),
     ];
     if debug_build {
         environment.extend(DEBUG_ONLY_VARIABLES.map(|name| (name, OsString::from("1"))));
@@ -219,7 +222,12 @@ mod tests {
 
     #[test]
     fn ios_environment_points_python_at_the_bundle_and_sets_the_token() {
-        let env = ios_engine_environment(Path::new("/App/Sharecut.app"), "tok", false);
+        let env = ios_engine_environment(
+            Path::new("/App/Sharecut.app"),
+            "tok",
+            Path::new("/tmp/sharecut-inbox"),
+            false,
+        );
         assert_eq!(
             env,
             vec![
@@ -232,14 +240,28 @@ mod tests {
                 ("PYTHONUTF8", OsString::from("1")),
                 ("PODCAST_SIDECAR_BOOT_TOKEN", OsString::from("tok")),
                 ("PODCAST_GUI_OPENAPI", OsString::from("0")),
+                (
+                    "PODCAST_IOS_INBOX_DIR",
+                    OsString::from("/tmp/sharecut-inbox")
+                ),
             ]
         );
     }
 
     #[test]
     fn only_a_debug_build_turns_the_request_audit_on() {
-        let release = ios_engine_environment(Path::new("/App/Sharecut.app"), "tok", false);
-        let debug = ios_engine_environment(Path::new("/App/Sharecut.app"), "tok", true);
+        let release = ios_engine_environment(
+            Path::new("/App/Sharecut.app"),
+            "tok",
+            Path::new("/tmp/sharecut-inbox"),
+            false,
+        );
+        let debug = ios_engine_environment(
+            Path::new("/App/Sharecut.app"),
+            "tok",
+            Path::new("/tmp/sharecut-inbox"),
+            true,
+        );
         assert!(release.iter().all(|(name, _)| !name.contains("AUDIT")));
         assert_eq!(debug[..release.len()], release[..]);
         assert_eq!(
