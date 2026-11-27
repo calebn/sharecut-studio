@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ from podcast_mcp.config.distribution import (
     tauri_distribution_overlay,
 )
 from podcast_mcp.config.runtime import load_host_runtime_config
+from podcast_mcp.models.episode import PROJECT_FILE_EXTENSION
 from podcast_mcp.services.support.config_check import ConfigMode, run_config_checks
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -835,3 +837,14 @@ def test_schema_accepts_a_boolean_project_file_association_and_rejects_other_typ
     jsonschema.validate(_valid_profile() | {"project_file_association": True}, schema)
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(_valid_profile() | {"project_file_association": "true"}, schema)
+
+
+def test_rust_host_spells_the_project_extension_like_the_python_constant() -> None:
+    rust = (ROOT / "gui" / "desktop" / "src-tauri" / "src" / "project_file.rs").read_text()
+    match = re.search(r'pub const PROJECT_FILE_EXTENSION: &str = "([^"]+)";', rust)
+    assert match is not None
+    assert match.group(1) == PROJECT_FILE_EXTENSION
+    overlay = tauri_distribution_overlay(
+        distribution_profile_from_mapping(_valid_profile() | {"project_file_association": True})
+    )
+    assert overlay["bundle"]["fileAssociations"][0]["ext"] == [match.group(1)]
