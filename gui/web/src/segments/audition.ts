@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { type SegmentRow, segmentAudioUrl } from "../api";
+import { useDawStore } from "../state/dawStore";
 
 export type AuditionState = {
   playingId: string | null;
@@ -111,6 +112,8 @@ export function toggleAudition(
     fail(row.id, owner);
     return;
   }
+  // A segment Hear is local playback, so it ends follow like every other Hear.
+  useDawStore.getState().stopFollow("local");
   const target = {
     id: row.id,
     owner,
