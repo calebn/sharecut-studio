@@ -134,6 +134,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "axe contrast of the open Comments sheet differs per theme, so both are the subject (#4660)",
   },
+  "record-stop-hint.spec.ts": {
+    loops: 1,
+    reason:
+      "axe contrast of the secondary-colour Hold to stop caption, the primary-colour nudge and the busy slot differ per theme, so both are the subject (#4660)",
+  },
   "record-timeline-layering.spec.ts": {
     loops: 1,
     reason:
