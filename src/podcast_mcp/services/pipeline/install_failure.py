@@ -74,8 +74,9 @@ def _child_reason(exc: HubChildError) -> tuple[FailureKind, int | None, str] | N
 
     if exc.kind == "http" and exc.status is not None:
         return "http", exc.status, _http_key(exc.status)
-    if exc.kind == "disk" and exc.errno in _DISK_FULL | _DISK_DENIED:
-        return "disk", None, "disk_full" if exc.errno in _DISK_FULL else "disk_denied"
+    if exc.kind == "disk" and (exc.errno is None or exc.errno in _DISK_FULL | _DISK_DENIED):
+        # No errno (a message-only report) is the full disk, the usual cause.
+        return "disk", None, "disk_denied" if exc.errno in _DISK_DENIED else "disk_full"
     if exc.kind == "network":
         return "network", None, "offline" if constants.HF_HUB_OFFLINE else "network"
     return None

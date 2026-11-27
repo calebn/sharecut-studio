@@ -739,18 +739,58 @@ def test_a_successful_child_fetch_runs_no_cleanup_and_deletes_nothing(
 def test_describe_classifies_a_disk_full_message_inside_hf_xet_as_disk(message: str) -> None:
     line = hf_fetch_child.describe(RuntimeError(message))
 
-    assert (line["kind"], line["xet"]) == ("disk", False)
+    assert (line["kind"], line["xet"], line["errno"]) == ("disk", False, errno.ENOSPC)
 
 
-def test_a_disk_full_xet_error_does_not_fall_back_and_gives_no_notice(
+XET_DISK_FULL = (
+    "Task error: File reconstruction error: IO Error: No space left on device (os error 28)"
+)
+NETWORK_TEXT = "Couldn't reach the download server. Check your internet connection and try again."
+DISK_FULL_TEXT = "There isn't enough free disk space to save the test model."
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (XET_DISK_FULL, errno.ENOSPC),
+        ("Task error: There is not enough space on the disk. (os error 112)", errno.ENOSPC),
+        ("Task error: Permission denied (os error 13)", errno.EACCES),
+        ("Task error: Read-only file system (os error 30)", errno.EROFS),
+        ("Task error: weird failure, disk full (os error 5)", errno.ENOSPC),
+    ],
+    ids=["linux-28", "windows-112", "eacces", "erofs", "marker-with-other-number"],
+)
+def test_describe_reports_the_os_error_of_a_xet_disk_message(message: str, expected: int) -> None:
+    line = hf_fetch_child.describe(RuntimeError(message))
+
+    assert (line["kind"], line["errno"]) == ("disk", expected)
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ConnectionError("CAS 507 body: disk full on shard"),
+        RuntimeError("CAS 507 insufficient storage: disk full"),
+        ValueError("No space left on device (os error 28)"),
+        RuntimeError("Task error: connection reset (os error 104)"),
+    ],
+    ids=["network", "non-xet-runtime", "unrelated", "xet-other-os-error"],
+)
+def test_a_disk_message_outside_a_xet_error_keeps_its_kind(exc: BaseException) -> None:
+    line = hf_fetch_child.describe(exc)
+
+    assert line["kind"] != "disk"
+    assert line["errno"] is None
+
+
+def test_a_disk_full_xet_error_does_not_fall_back_and_is_worded_as_disk_full(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     calls = _hub(monkeypatch, tmp_path / "snap")
     child = (
         "import json, sys\n"
         "from podcast_mcp.util import hf_fetch_child\n"
-        "line = hf_fetch_child.describe(RuntimeError("
-        "'Task error: File reconstruction error: No space left on device (os error 28)'))\n"
+        f"line = hf_fetch_child.describe(RuntimeError({XET_DISK_FULL!r}))\n"
         "print(json.dumps(line)); sys.exit(1)\n"
     )
     _stub(monkeypatch, child)
@@ -761,9 +801,41 @@ def test_a_disk_full_xet_error_does_not_fall_back_and_gives_no_notice(
             _payload_pin(), tmp_path / "hub", on_progress=lambda _p: None, on_notice=notices.append
         )
 
-    assert raised.value.kind == "disk"
+    assert (raised.value.kind, raised.value.errno) == ("disk", errno.ENOSPC)
+    failure = classify(raised.value, label="the test model", fix="fix")
+    assert failure is not None
+    assert (failure.kind, failure.plain) == ("disk", DISK_FULL_TEXT)
     assert calls == []
     assert notices == []
+
+
+def test_a_child_disk_error_without_an_errno_is_still_disk_full() -> None:
+    failure = classify(HubChildError("disk", "m"), label="the test model", fix="fix")
+
+    assert failure is not None
+    assert (failure.kind, failure.plain) == ("disk", DISK_FULL_TEXT)
+
+
+def test_a_cas_507_disk_full_from_a_non_xet_error_stays_a_network_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _hub(monkeypatch, tmp_path / "snap")
+    child = (
+        "import json, sys\n"
+        "from podcast_mcp.util import hf_fetch_child\n"
+        "line = hf_fetch_child.describe(ConnectionError('CAS 507: disk full on shard'))\n"
+        "print(json.dumps(line)); sys.exit(1)\n"
+    )
+    _stub(monkeypatch, child)
+
+    with pytest.raises(HubChildError) as raised:
+        download_pinned_snapshot(_payload_pin(), tmp_path / "hub", on_progress=lambda _p: None)
+
+    assert (raised.value.kind, raised.value.errno, raised.value.xet) == ("network", None, False)
+    failure = classify(raised.value, label="the test model", fix="fix")
+    assert failure is not None
+    assert (failure.kind, failure.plain) == ("network", NETWORK_TEXT)
+    assert calls == []
 
 
 def test_a_disk_error_the_child_marks_xet_never_falls_back(
