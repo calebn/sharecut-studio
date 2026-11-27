@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal, cast, overload
@@ -43,6 +43,9 @@ from podcast_mcp.edits.transcript_reconcile import (
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.document.analysis_edit_results import (
+    AlignmentPreview,
+    AlignmentProposal,
+    AlignmentSkip,
     BleedMuteApplied,
     BleedMuteDryRun,
     ReconcileTranscriptPreview,
@@ -95,11 +98,13 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 log = logging.getLogger(__name__)
 
 
-def _alignment_preview(plan: AlignmentPlan) -> dict[str, Any]:
+def _alignment_preview(plan: AlignmentPlan) -> AlignmentPreview:
     return {
         "proposed_count": len(plan.proposals),
-        "proposals": [asdict(proposal) for proposal in plan.proposals],
-        "skipped": list(plan.skipped),
+        "proposals": cast(
+            list[AlignmentProposal], [asdict(proposal) for proposal in plan.proposals]
+        ),
+        "skipped": cast(list[AlignmentSkip], list(plan.skipped)),
     }
 
 
@@ -509,7 +514,7 @@ class AnalysisService(AnalysisReportService):
                 override_placement_lock=override_placement_lock,
             )
 
-        def mutate(p: EpisodeProject) -> dict[str, Any]:
+        def mutate(p: EpisodeProject) -> Mapping[str, Any]:
             plan = self._retained_bleed_plan(
                 p, track_id, start_sec, end_sec, override_placement_lock
             )
@@ -547,7 +552,7 @@ class AnalysisService(AnalysisReportService):
         end_sec: float | None = None,
         override_placement_lock: bool = False,
     ) -> RetainedBleedAlignmentModeResult:
-        def mutate(p: EpisodeProject) -> dict[str, Any]:
+        def mutate(p: EpisodeProject) -> Mapping[str, Any]:
             proposal = None
             if not any(d.id == decision_id for d in p.editorial.retained_bleed_alignments):
                 plan = plan_retained_bleed_alignment(
@@ -585,7 +590,7 @@ class AnalysisService(AnalysisReportService):
         tid = self._resolve(track_id, speaker) if track_id or speaker else None
 
         def run(p: EpisodeProject, *, dry_run: bool) -> BleedMuteDryRun | BleedMuteApplied:
-            alignment = None
+            alignment: Mapping[str, Any] | None = None
             if align_retained_bleed:
                 plan = plan_retained_bleed_alignment(
                     p,
@@ -596,20 +601,19 @@ class AnalysisService(AnalysisReportService):
                     defaults=self.ws.effective_config(),
                 )
                 if plan.proposals or plan.skipped:
-                    alignment = (
-                        _alignment_preview(plan)
-                        if dry_run
-                        else apply_retained_bleed_alignment(
+                    if dry_run:
+                        alignment = _alignment_preview(plan)
+                    else:
+                        alignment = apply_retained_bleed_alignment(
                             p, plan, defaults=self.ws.effective_config()
                         )
-                    )
-                    if not dry_run and alignment["applied_count"]:
-                        rerender_preview(
-                            p,
-                            reconcile=False,
-                            progress=progress,
-                            defaults=self.ws.effective_config(),
-                        )
+                        if alignment["applied_count"]:
+                            rerender_preview(
+                                p,
+                                reconcile=False,
+                                progress=progress,
+                                defaults=self.ws.effective_config(),
+                            )
             result = apply_transcript_bleed_mute(
                 p,
                 track_id=tid,
