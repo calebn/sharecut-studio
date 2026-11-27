@@ -2582,14 +2582,22 @@ def test_two_clients_without_a_client_id_do_not_collide(
 def test_unnamed_record_guests_are_called_guest(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
+    # A real coolname adjective whose first six letters also name a snapshot field.
+    guest_slug = "reasonable-synthetic-guest"
+    slugs = iter((guest_slug, "careful-synthetic-producer"))
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share_registry.generate_slug",
+        lambda _word_count: next(slugs),
+    )
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
+    assert token == guest_slug
     with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
         sock.send_json({"type": "Record", "command_type": "Join", "payload": {}, "client_seq": 1})
         snap = _drain_until(sock, lambda m: m.get("type") == "Snapshot")
     names = [p["display_name"] for p in snap["snapshot"]["participants"] if p["role"] == "guest"]
     assert names == ["Guest"]
-    assert token[:6] not in str(snap)
+    assert token not in str(snap)
 
 
 # --- producer look-in (observe=1) -------------------------------------------------------------
