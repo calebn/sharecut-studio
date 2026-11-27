@@ -20,6 +20,7 @@ import { readNotServed } from "./utils/notServed";
 import { isSavedCopyFresh } from "./utils/savedCopyAge";
 import "./styles/daw.css";
 import "./stage/edit/script/registerTranscriptSelectionFollower";
+import { OpenProjectFileHost } from "./desktop/OpenProjectFileHost";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import {
   useFeaturesReady,
@@ -718,6 +719,7 @@ export default function App({ bootName = null }: { bootName?: string | null }) {
     <FeatureProvider>
       {isGuestLocation() ? inner : <ModelsProvider>{inner}</ModelsProvider>}
       <AskDialog />
+      {isGuestLocation() ? null : <OpenProjectFileHost />}
     </FeatureProvider>
   );
 }
