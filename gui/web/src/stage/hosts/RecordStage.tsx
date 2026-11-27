@@ -513,7 +513,6 @@ function RecordStageBody({
     return () => setRoomKeys(null);
   }, [keyTake, keyStart, keyStop, keyPause, keyMute]);
 
-  const viewerWidth = viewerWidthOf(shell);
   // What the host has seen lives here, not in RoomView, which remounts when
   // the snapshot drops and returns. A different room starts it afresh.
   const [unreadStore] = useState(() => new UnreadStore());
@@ -535,11 +534,11 @@ function RecordStageBody({
         people,
         lookingIn: lookingInCount(snapshot.watchers),
         phase,
-        viewerWidth,
+        viewerWidth: viewerWidthOf(shell),
         alerts,
         defaultNotesOpen: true,
-        collapseNotesInTake: viewerWidth === "phone",
-        countUnread: viewerWidth === "phone" ? unreadStore : undefined,
+        collapseNotesInTake: true,
+        unreadStore,
         notes: noteItems(snapshot, host?.participant_id),
         noteVisibility: false,
         notesDisabledReason: liveTakeOpen(state)

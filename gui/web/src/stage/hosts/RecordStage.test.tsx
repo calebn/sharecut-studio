@@ -287,7 +287,7 @@ describe("Record stage host phone Comments sheet (#4660)", () => {
     expect(peek()).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("keeps the open Comments rail on a desktop host during a take", async () => {
+  it("guard: keeps the open Comments rail on a desktop host during a take", async () => {
     setRoom(recording());
     mount();
     await waitFor(() =>
@@ -351,6 +351,29 @@ describe("Record stage host phone Comments sheet (#4660)", () => {
       setRoom({
         ...recording([...existing, comment("c6", "p_g")]),
         server_time_ns: 21,
+      }),
+    );
+    expect(badge()).toHaveTextContent("1");
+  });
+  it("starts the count afresh when the session id changes to a new room", async () => {
+    stubViewportShell("phone");
+    const existing = [1, 2, 3].map((n) => comment(`c${n}`, "p_g"));
+    setRoom(recording([comment("old", "p_g")]));
+    mount();
+    await waitFor(() => expect(peek()).toBeInTheDocument());
+    act(() =>
+      setRoom({
+        ...recording(existing),
+        session_id: "room2",
+        server_time_ns: 30,
+      }),
+    );
+    expect(badge()).toBeNull();
+    act(() =>
+      setRoom({
+        ...recording([...existing, comment("c4", "p_g")]),
+        session_id: "room2",
+        server_time_ns: 31,
       }),
     );
     expect(badge()).toHaveTextContent("1");

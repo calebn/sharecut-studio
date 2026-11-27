@@ -438,7 +438,6 @@ export const PhoneLive: Story = {
     await expect(
       await within(canvasElement).findByRole("button", { name: "Stop take" }),
     ).toBeVisible();
-    // A live take starts with the Comments sheet collapsed to its peek bar.
     await expect(
       canvasElement.querySelector(".sys-room-view-peek"),
     ).toHaveAttribute("aria-expanded", "false");

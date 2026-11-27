@@ -39,8 +39,7 @@ import { SkeletonBlock } from "./Skeleton";
 import { SystemIcon } from "./SystemIcon";
 import { useRoomSheetFloor } from "./useRoomSheetFloor";
 import {
-  UNREAD_WORD,
-  UnreadStore,
+  type UnreadStore,
   unreadBadgeText,
   useUnreadNotes,
 } from "./useUnreadNotes";
@@ -65,17 +64,10 @@ export type RoomViewProps = {
   alerts?: RoomAlertInput[];
   /** Whether the Comments rail starts open. The Comments button flips it after that. */
   defaultNotesOpen?: boolean;
-  /**
-   * The host phone: while a take is live (recording or paused) the Comments
-   * sheet starts collapsed to its peek bar unless the host opened it
-   * themselves. Outside a take `defaultNotesOpen` applies.
-   */
+  /** On a phone, a live take starts the Comments sheet collapsed unless the host opened it. */
   collapseNotesInTake?: boolean;
-  /**
-   * Counts comments by others for the peek bar's badge. The caller owns the
-   * store so a remount keeps what the host has seen; absent means no count.
-   */
-  countUnread?: UnreadStore;
+  /** Owned by the caller so a remount keeps what the host has seen. Phone only; absent counts nothing. */
+  unreadStore?: UnreadStore;
   notes: NoteItem[];
   /** The viewer's own name, so a guest keeps their own comments. */
   selfName: string;
@@ -188,7 +180,7 @@ export function RoomView({
   alerts,
   defaultNotesOpen,
   collapseNotesInTake = false,
-  countUnread,
+  unreadStore,
   notes,
   selfName,
   onSendNote,
@@ -227,12 +219,14 @@ export function RoomView({
   }, [focusTitle]);
   const tabId = useId();
   const [railTab, setRailTab] = useState<RailTab>("comments");
-  // The host's own choice, once made; until then the default decides.
   const [notesChoice, setNotesChoice] = useState<boolean | undefined>();
+  const phone = viewerWidth === "phone";
   const collapsed =
     collapseNotesInTake &&
-    viewerWidth === "phone" &&
-    (phase.kind === "live" || phase.kind === "paused");
+    phone &&
+    (phase.kind === "live" ||
+      phase.kind === "paused" ||
+      phase.kind === "reconnecting");
   const notesOpen = notesChoice ?? (collapsed ? false : defaultNotesOpen);
   const [draft, setDraft] = useState("");
   const [everyone, setEveryone] = useState(false);
@@ -274,16 +268,14 @@ export function RoomView({
   const rootRef = useRef<HTMLDivElement>(null);
   const commentsSheetOpen = model.sheetOpen && !declined && !loading;
   useRoomSheetFloor(rootRef, commentsSheetOpen);
-  const [spareStore] = useState(() => new UnreadStore());
   const unread = useUnreadNotes({
     notes,
     selfName,
-    enabled: countUnread !== undefined,
     loading,
     sheetOpen: model.sheetOpen,
     commentsShowing:
       commentsSheetOpen && (takes === undefined || railTab === "comments"),
-    store: countUnread ?? spareStore,
+    store: phone ? unreadStore : undefined,
   });
 
   const closeSheet = useCallback(() => setNotesChoice(false), []);
@@ -495,7 +487,7 @@ export function RoomView({
               data-pulse={unread.pulseKey > 0 ? "" : undefined}
             >
               {unreadBadgeText(unread.count)}
-              <span className="sr-only">{UNREAD_WORD}</span>
+              <span className="sr-only"> unread</span>
             </span>
           ) : null}
         </button>

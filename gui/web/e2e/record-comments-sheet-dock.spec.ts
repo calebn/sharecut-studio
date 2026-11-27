@@ -134,7 +134,6 @@ test.describe("host phone", () => {
             "Start",
             "recording",
           );
-          // A live take starts collapsed to the peek bar; one tap opens it.
           await expect(peek(host)).toHaveAttribute("aria-expanded", "false");
           await expect(panel(host)).toHaveCount(0);
           await expectNoRoomSheetState(host);

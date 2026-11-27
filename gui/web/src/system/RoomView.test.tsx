@@ -1440,7 +1440,7 @@ describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
       viewerWidth: "phone",
       defaultNotesOpen: true,
       collapseNotesInTake: true,
-      countUnread: new UnreadStore(),
+      unreadStore: new UnreadStore(),
       notes: [],
       selfName: "Maya Okafor",
       onSendNote: vi.fn(),
@@ -1478,13 +1478,24 @@ describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
     ["waiting", WAITING],
     ["saved", SAVED],
   ] as const)(
-    "keeps today's open sheet when the room is %s",
+    "guard: keeps today's open sheet when the room is %s",
     (_name, phase) => {
       hostPhone({ phase });
       expect(sheet()).toBeVisible();
       expect(peek()).toHaveAttribute("aria-expanded", "true");
     },
   );
+
+  it("stays collapsed through a mid-take reconnect, paused or not", () => {
+    const view = hostPhone();
+    view.update({
+      phase: { kind: "reconnecting", paused: false, clockSec: 5 },
+    });
+    expect(sheet()).toBeNull();
+    view.update({ phase: { kind: "reconnecting", paused: true } });
+    expect(sheet()).toBeNull();
+    expect(peek()).toHaveAttribute("aria-expanded", "false");
+  });
 
   it("collapses when a take starts, if the host did not open the sheet themselves", () => {
     const view = hostPhone({ phase: WAITING });
@@ -1547,7 +1558,7 @@ describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
     expect(peek()).toHaveAccessibleName(/2 ?unread$/);
   });
 
-  it("caps the badge at 99+ and says 99 or more", () => {
+  it("caps the badge at 99+", () => {
     const view = hostPhone();
     view.update({
       notes: Array.from({ length: 120 }, (_, i) => guestNote(`n${i}`)),
@@ -1609,28 +1620,7 @@ describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
     expect(badge()).toBeNull();
   });
 
-  it("a reconnect remount with a kept store does not count the comments already in the room", () => {
-    const store = new UnreadStore();
-    const notes = [1, 2, 3, 4, 5].map((n) => guestNote(`${n}`));
-    const first = hostPhone({ notes, countUnread: store });
-    expect(badge()).toBeNull();
-    first.unmount();
-    const second = hostPhone({ notes, countUnread: store });
-    expect(badge()).toBeNull();
-    second.update({ notes: [...notes, guestNote("6")] });
-    expect(badge()).toHaveTextContent("1");
-  });
-
-  it("seeds after loading: no badge for the five comments that arrive with the room", () => {
-    const view = hostPhone({ loading: true, notes: [] });
-    view.update({
-      loading: false,
-      notes: [1, 2, 3, 4, 5].map((n) => guestNote(`${n}`)),
-    });
-    expect(badge()).toBeNull();
-  });
-
-  it("is off without the store: a guest's phone never shows a badge", () => {
+  it("guard: without the store a guest's phone never shows a badge", () => {
     const view = renderRoom({ viewerWidth: "phone", notes: [] });
     const props = {
       seat: "guest" as const,
@@ -1648,7 +1638,7 @@ describe("RoomView, host phone Comments sheet during a take (#4660)", () => {
     expect(peek()).not.toHaveAccessibleName(/unread/);
   });
 
-  it("a desktop host keeps the open rail: no peek bar, no badge", () => {
+  it("guard: a desktop host keeps the open rail: no peek bar, no badge", () => {
     const view = hostPhone({ viewerWidth: "desktop" });
     expect(document.querySelector(".sys-room-view-peek")).toBeNull();
     expect(

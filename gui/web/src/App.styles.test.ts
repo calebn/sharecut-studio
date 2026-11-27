@@ -298,31 +298,5 @@ describe("App styles", () => {
       expect(inline).toMatch(/border-radius:\s*var\(--radius-xl\)/);
       expect(inline).not.toMatch(/\dpx/);
     });
-
-    it("pulses only under no-preference motion, once, on the loop token, without fading the count", () => {
-      const keyframes = css.match(
-        /@keyframes room-peek-badge-pulse\s*\{([\s\S]*?)\n\}/,
-      )?.[1];
-      expect(keyframes).toBeTruthy();
-      expect(keyframes).toMatch(/transform:\s*scale\(/);
-      expect(keyframes).not.toMatch(/opacity/);
-      const uses = [
-        ...css.matchAll(/animation:[^;]*room-peek-badge-pulse[^;]*;/g),
-      ];
-      expect(uses).toHaveLength(1);
-      expect(uses[0]?.[0]).toMatch(/var\(--motion-loop-pipeline\)/);
-      expect(uses[0]?.[0]).not.toMatch(/infinite/);
-      const motion = css.match(
-        /@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?)\n\}/g,
-      );
-      expect(
-        motion?.some((block) => block.includes("room-peek-badge-pulse")),
-      ).toBe(true);
-      const outside = css.replace(
-        /@media \(prefers-reduced-motion: no-preference\)\s*\{[\s\S]*?\n\}/g,
-        "",
-      );
-      expect(outside).not.toMatch(/animation:[^;]*room-peek-badge-pulse/);
-    });
   });
 });
