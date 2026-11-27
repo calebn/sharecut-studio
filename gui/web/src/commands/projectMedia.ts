@@ -227,6 +227,10 @@ export function registerProjectMediaCommands(): void {
               .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
             return;
           }
+          // The engine resolves the path; the file may already be the open project.
+          if (out.project_path === useDawStore.getState().projectPath) {
+            return;
+          }
           window.location.assign(
             projectUrl(window.location.href, out.project_path),
           );

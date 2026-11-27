@@ -1,6 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 import { executePointerCommand } from "../commands/pointer";
+import { registerProjectMediaCommands } from "../commands/projectMedia";
 import { useDawStore } from "../state/dawStore";
 import {
   drainOpenProjectQueue,
@@ -17,6 +18,8 @@ function openProjectFile(path: string): void {
 export function OpenProjectFileHost() {
   useEffect(() => {
     if (!isTauri()) return;
+    // The host mounts before Home or the editor register their commands; registering is idempotent.
+    registerProjectMediaCommands();
     const drain = () => {
       for (const path of drainOpenProjectQueue()) openProjectFile(path);
     };
