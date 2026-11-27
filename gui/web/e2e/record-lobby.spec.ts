@@ -2146,6 +2146,10 @@ test.describe("join sheet on a phone", () => {
             await guest.evaluate(() => document.documentElement.scrollWidth),
             where,
           ).toBeLessThanOrEqual(width);
+          await expect(
+            panel.locator('[data-step="name"]'),
+            `${where} ring`,
+          ).toBeFocused();
           const ring = await guest.evaluate(() => {
             const row = document.activeElement as HTMLElement;
             const input = row.querySelector("input");
@@ -2189,14 +2193,17 @@ test.describe("join sheet on a phone", () => {
           for (const name of ["Join and record", "Not now"]) {
             const control = panel.getByRole("button", { name });
             await control.scrollIntoViewIfNeeded();
-            const box = await boxOf(control);
-            expect(box.y, `${where} ${name}`).toBeGreaterThanOrEqual(-0.5);
-            expect(box.y + box.height, `${where} ${name}`).toBeLessThanOrEqual(
-              height + 0.5,
-            );
-            expect(box.height, `${where} ${name}`).toBeGreaterThanOrEqual(
-              TOUCH_MIN,
-            );
+            await expect(async () => {
+              const box = await boxOf(control);
+              expect(box.y, `${where} ${name}`).toBeGreaterThanOrEqual(-0.5);
+              expect(
+                box.y + box.height,
+                `${where} ${name}`,
+              ).toBeLessThanOrEqual(height + 0.5);
+              expect(box.height, `${where} ${name}`).toBeGreaterThanOrEqual(
+                TOUCH_MIN,
+              );
+            }).toPass({ timeout: 5_000 });
           }
         },
       );
