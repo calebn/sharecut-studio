@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { notesNaming } from "../test/readableText";
@@ -544,6 +544,41 @@ describe("JoinSheet first focus", () => {
     await userEvent.keyboard("va");
     expect(field).toHaveValue("Ava");
     expect(field).toHaveFocus();
+  });
+
+  it("lands the mount frame on the name row when the storage row goes away in the same commit", async () => {
+    touchScreen();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    let armed = false;
+    function GapProbe() {
+      useLayoutEffect(() => {
+        if (armed) for (const frame of frames.splice(0)) frame(0);
+      });
+      return null;
+    }
+    const sheet = (blocker?: JoinSheetProps["blocker"]) => (
+      <>
+        <Harness mic={{ status: "idle" }} blocker={blocker} />
+        <GapProbe />
+      </>
+    );
+    const { rerender } = render(sheet({ text: "Checking this device…" }));
+    expect(frames.length).toBeGreaterThan(0);
+    const close = screen.getByRole("button", { name: "Close" });
+    const onCloseFocus = vi.fn();
+    close.addEventListener("focusin", onCloseFocus);
+    armed = true;
+    rerender(sheet());
+    await waitFor(() =>
+      expect(document.querySelector('[data-step="name"]')).toHaveFocus(),
+    );
+    expect(onCloseFocus).not.toHaveBeenCalled();
+    expect(close).not.toHaveFocus();
   });
 
   it("leaves focus in the name field while the guest types", async () => {
