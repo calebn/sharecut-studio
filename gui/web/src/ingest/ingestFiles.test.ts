@@ -79,21 +79,14 @@ describe("ingestFiles", () => {
     const good = new File(["RIFF...."], "good.wav", { type: "audio/wav" });
     const bad = new File(["hello"], "notes.txt", { type: "text/plain" });
 
-    const seen: string[] = [];
-    const stop = useDawStore.subscribe((state) => {
-      seen.push(state.statusAnnouncement ?? "");
-    });
-
     await ingestFiles([bad, good], { kind: "new" });
-    stop();
 
     expect(addTrackMock).toHaveBeenCalledTimes(1);
     expect(addTrackMock.mock.calls[0]?.[1]).toMatchObject({ track_id: "good" });
     expect(uploadMock).toHaveBeenCalledTimes(1);
-    expect(
-      seen.some((line) => line.includes("notes.txt is not an audio file.")),
-    ).toBe(true);
-    expect(useDawStore.getState().statusAnnouncement).toMatch(/^Added /);
+    const line = useDawStore.getState().statusAnnouncement ?? "";
+    expect(line).toMatch(/^Added /);
+    expect(line).toContain("notes.txt is not an audio file.");
   });
 
   it("keeps the failure line when a mixed batch's audio file is refused by the server", async () => {
@@ -106,7 +99,7 @@ describe("ingestFiles", () => {
     await ingestFiles([bad, good], { kind: "new" });
 
     expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Import failed: unsupported audio format",
+      "Import failed: unsupported audio format — notes.txt is not an audio file. WAV, MP3, M4A, FLAC, AIFF and OGG work.",
     );
   });
 

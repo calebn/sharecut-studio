@@ -126,7 +126,11 @@ function focusImportedTrack(trackId: string): void {
 
 function announceImportResult(
   trackId: string,
-  opts: { replaced: boolean; undo?: HistoryEntryId | null },
+  opts: {
+    replaced: boolean;
+    undo?: HistoryEntryId | null;
+    skipped?: string;
+  },
 ): void {
   const s = useDawStore.getState();
   const track = s.project?.tracks.find((t) => t.id === trackId);
@@ -134,11 +138,14 @@ function announceImportResult(
   const verb = opts.replaced ? "Replaced" : "Added";
   const dur = track?.duration_sec;
   if (dur != null && dur > 0) {
-    s.announceStatus(`${verb} ${label} · ${formatIngestDuration(dur)}`, {
+    s.announceStatus(
+      `${verb} ${label} · ${formatIngestDuration(dur)}${opts.skipped ?? ""}`,
+      { undo: opts.undo ?? null },
+    );
+  } else {
+    s.announceStatus(`${verb} ${label}${opts.skipped ?? ""}`, {
       undo: opts.undo ?? null,
     });
-  } else {
-    s.announceStatus(`${verb} ${label}`, { undo: opts.undo ?? null });
   }
 }
 
@@ -162,6 +169,7 @@ export async function ingestFiles(
 
   const refused = files.filter((file) => !isAudioIngestFile(file));
   const list = files.filter(isAudioIngestFile);
+  const skipped = refused.length > 0 ? ` — ${refusalLine(refused)}` : "";
   if (list.length === 0) {
     s.announceStatus(refusalLine(refused), { tone: "error" });
     return;
@@ -193,10 +201,7 @@ export async function ingestFiles(
             clipCount:
               current.project?.clips?.tracks?.[ingestTarget.id]?.length ?? 0,
           }));
-      current.announceStatus(
-        `Importing ${list.length} file(s)…${refused.length > 0 ? ` ${refusalLine(refused)}` : ""}`,
-        refused.length > 0 ? { tone: "error" } : undefined,
-      );
+      current.announceStatus(`Importing ${list.length} file(s)…${skipped}`);
       if (ingestTarget.kind === "track") {
         const first = list[0]!;
         const uploaded = await uploadMediaFile(projectPath, first);
@@ -222,19 +227,29 @@ export async function ingestFiles(
       if (focusId) {
         focusImportedTrack(focusId);
         if (replaced && ingestTarget.kind === "track") {
-          announceImportResult(ingestTarget.id, { replaced, undo: undoHead });
+          announceImportResult(ingestTarget.id, {
+            replaced,
+            undo: undoHead,
+            skipped,
+          });
         } else {
-          announceImportResult(focusId, { replaced: false, undo: null });
+          announceImportResult(focusId, {
+            replaced: false,
+            undo: null,
+            skipped,
+          });
         }
       } else {
-        useDawStore.getState().announceStatus("Import complete");
+        useDawStore.getState().announceStatus(`Import complete${skipped}`);
       }
     } catch (err) {
       if (useDawStore.getState().projectPath !== projectPath) return hasMedia;
       const reason = errorMessage(err);
       useDawStore
         .getState()
-        .announceStatus(`Import failed: ${reason}`, { tone: "error" });
+        .announceStatus(`Import failed: ${reason}${skipped}`, {
+          tone: "error",
+        });
       try {
         await refreshDocumentProject(projectPath);
       } catch {}
