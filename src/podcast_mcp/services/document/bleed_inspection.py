@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict
@@ -63,6 +63,11 @@ class BleedRestoreResult(TypedDict):
     history_head_id: str
 
 
+class BleedGateState(TypedDict):
+    gate: dict[str, Any]
+    lanes: list[dict[str, Any]]
+
+
 def _content(path: Path) -> tuple[str, FileRevision]:
     before = file_revision(path)
     digest = sha256_file(path)
@@ -71,7 +76,9 @@ def _content(path: Path) -> tuple[str, FileRevision]:
     return digest, before
 
 
-def _gate_state(project: EpisodeProject, track_id: str, defaults: EffectiveConfig) -> dict:
+def _gate_state(
+    project: EpisodeProject, track_id: str, defaults: EffectiveConfig
+) -> BleedGateState:
     payload = bleed_gate_payload(project, track_id, defaults=defaults)
     return {
         "gate": payload,
