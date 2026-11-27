@@ -551,6 +551,7 @@ export interface TrackView {
   fx_count?: number;
   stem_is_fresh?: boolean | null;
   has_source_audio?: boolean;
+  transcribed?: boolean;
   media_path?: string | null;
   speaker_split_id?: string | null;
   room_tone_kind?: "none" | "recorded" | "extracted";

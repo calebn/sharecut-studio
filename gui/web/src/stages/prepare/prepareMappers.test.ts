@@ -89,6 +89,19 @@ describe("transcriptIndex", () => {
     expect(voices.get("a")).toBe(2);
     expect(transcriptIndex(undefined).transcribed.size).toBe(0);
   });
+
+  it("takes the server's transcribed flag over the words, and the words when it is absent", () => {
+    const { transcribed } = transcriptIndex(
+      [{ track_id: "c", speaker: "Noor" }],
+      [
+        sampleTrack({ id: "a", transcribed: true }),
+        sampleTrack({ id: "b", transcribed: false }),
+        sampleTrack({ id: "c" }),
+        sampleTrack({ id: "d" }),
+      ],
+    );
+    expect([...transcribed].sort()).toEqual(["a", "c"]);
+  });
 });
 
 describe("prepareSessions", () => {

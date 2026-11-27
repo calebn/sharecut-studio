@@ -24,6 +24,7 @@ from podcast_mcp.project.transcript_context import TranscriptContext, load_trans
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +97,21 @@ def _audio_matches(
         return current.audio_sha256 == sha
     seen = cached_audio_keys(project, job.cache_id)
     return not seen or sha[:16] in seen
+
+
+def track_is_transcribed(project: EpisodeProject, track_id: str) -> bool:
+    """Whether a stored transcript, even one with no words, belongs to the track's current audio."""
+    track = project.track_by_id(track_id)
+    current = project.transcript_by_key((track_id, None))
+    if track is None or track.media is None or current is None:
+        return False
+    if current.audio_sha256 is None and not current.words:
+        return False
+    job = TranscribeJob(track_id, None, resolve_under_workspace(project, track.media.path))
+    if not job.audio.is_file():
+        return False
+    sha, _ = audio_identity(job, current)
+    return _audio_matches(project, job, current, sha)
 
 
 def language_changed(recorded: str | None, requested: str | None) -> bool:

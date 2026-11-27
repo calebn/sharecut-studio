@@ -197,6 +197,7 @@ function mediaName(track: TrackView): string {
 
 export function transcriptIndex(
   utterances: readonly { track_id: string; speaker: string }[] | undefined,
+  tracks: readonly Pick<TrackView, "id" | "transcribed">[] = [],
 ): { transcribed: ReadonlySet<string>; voices: ReadonlyMap<string, number> } {
   const speakers = new Map<string, Set<string>>();
   for (const row of utterances ?? []) {
@@ -204,8 +205,13 @@ export function transcriptIndex(
     set.add(row.speaker);
     speakers.set(row.track_id, set);
   }
+  const flagged = new Map(tracks.map((t) => [t.id, t.transcribed]));
+  const heard = [...speakers.keys()].filter(
+    (id) => flagged.get(id) === undefined,
+  );
+  const stored = tracks.filter((t) => t.transcribed).map((t) => t.id);
   return {
-    transcribed: new Set(speakers.keys()),
+    transcribed: new Set([...heard, ...stored]),
     voices: new Map([...speakers].map(([id, set]) => [id, set.size])),
   };
 }
