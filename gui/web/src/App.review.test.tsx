@@ -323,6 +323,7 @@ describe("App review route", () => {
   });
 
   it.each([
+    [502, "bad gateway"],
     [503, "host offline"],
     [504, "host timed out"],
   ])(
@@ -579,15 +580,12 @@ describe("App review route", () => {
   it("says This address cannot open review links when the host has no share routes", async () => {
     window.history.pushState({}, "", "/r/noroutes");
     resetFeaturesCache();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () =>
-          new Response(JSON.stringify({ api_version: 1, features: [] }), {
-            status: 200,
-          }),
-      ),
-    );
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (urlOf(input).includes("/features"))
+        return Response.json({ api_version: 1, features: [] });
+      return new Response("unexpected request", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
     render(<App />);
     await screen.findByRole("heading", { name: "This link did not load" });
     expect(
@@ -596,6 +594,11 @@ describe("App review route", () => {
       ),
     ).toBeVisible();
     expect(screen.queryByRole("button")).toBeNull();
+    expect(
+      fetchMock.mock.calls.filter(([input]) =>
+        urlOf(input).endsWith("/api/review/noroutes/project"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("retries an asleep host on its own every 30 seconds", async () => {
@@ -1020,15 +1023,16 @@ describe("App loading screens before the features answer", () => {
     resetFeaturesCache();
     offline.load.mockResolvedValue(undefined);
     const answers: Array<(res: Response) => void> = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        if (urlOf(input).includes("/features")) {
-          return new Promise<Response>((resolve) => answers.push(resolve));
-        }
-        return new Response("{}", { status: 500 });
-      }),
-    );
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (urlOf(input).includes("/features"))
+        return new Promise<Response>((resolve) => answers.push(resolve));
+      return new Response("{}", { status: 500 });
+    });
+    const reviewReads = () =>
+      fetchMock.mock.calls.filter(([input]) =>
+        urlOf(input).endsWith("/api/review/slow/project"),
+      );
+    vi.stubGlobal("fetch", fetchMock);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<App />);
     await act(async () => {
@@ -1036,6 +1040,7 @@ describe("App loading screens before the features answer", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(answers).toHaveLength(2);
+    expect(reviewReads()).toHaveLength(0);
     await act(async () => {
       answers[0]?.(
         new Response(
@@ -1047,6 +1052,7 @@ describe("App loading screens before the features answer", () => {
     expect(
       await screen.findByRole("heading", { name: "This link did not load" }),
     ).toBeInTheDocument();
+    expect(reviewReads()).toHaveLength(1);
   });
 
   it("shows the host the Loading cover, not the plain loading screen", () => {
