@@ -1,4 +1,5 @@
 import { useShallow } from "zustand/react/shallow";
+import { execute } from "../../commands/execute";
 import { runPointerCommand } from "../../commands/pointer";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../../state/stageRoutes";
@@ -26,5 +27,8 @@ export function useStageBarProps(): StageBarProps | undefined {
     record,
     // The command applies the role gate, drops a follow and snapshots the view.
     onSelect: (next: StageId) => runPointerCommand(`stage.${next}`),
+    onTabSelect: (next: StageId) => {
+      void execute(`stage.${next}`, {}, { skipWhen: true, stageTab: true });
+    },
   };
 }

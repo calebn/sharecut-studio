@@ -5,15 +5,6 @@ import { stageLabel } from "../../system/verbs";
 import type { StageId } from "../../types/stage";
 import { STAGE_BODY_ID } from "./StageFrameView";
 
-const TAB_CLICK_MS = 600;
-let tabPressedAt = Number.NEGATIVE_INFINITY;
-
-/** A mouse click on a Stage tab does not focus it in Safari or Firefox on macOS, so the press itself is noted. */
-function noteTabPress(event: PointerEvent): void {
-  if (event.target instanceof Element && event.target.closest('[role="tab"]'))
-    tabPressedAt = performance.now();
-}
-
 function typingTarget(active: Element | null): boolean {
   return (
     active instanceof HTMLElement &&
@@ -35,20 +26,10 @@ function typingTarget(active: Element | null): boolean {
 export function useAnnounceStageSwitch(stage: StageId): void {
   const shown = useRef(stage);
   useEffect(() => {
-    document.addEventListener("pointerdown", noteTabPress, true);
-    return () =>
-      document.removeEventListener("pointerdown", noteTabPress, true);
-  }, []);
-  useEffect(() => {
     if (shown.current === stage) return;
     shown.current = stage;
-    if (!takeUserStageSwitch()) return;
+    if (takeUserStageSwitch() !== "command") return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.getAttribute("role") === "tab")
-      return;
-    const tabPress = performance.now() - tabPressedAt < TAB_CLICK_MS;
-    tabPressedAt = Number.NEGATIVE_INFINITY;
-    if (tabPress) return;
     useDawStore
       .getState()
       .announceStatus(`${stageLabel(stage)} stage`, { toast: false });

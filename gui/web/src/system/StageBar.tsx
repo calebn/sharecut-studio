@@ -8,6 +8,7 @@ import { STAGES } from "./verbs";
 export type StageBarProps = {
   active: StageId;
   onSelect: (stage: StageId) => void;
+  onTabSelect?: (stage: StageId) => void;
   /** Stages shown, in order. A guest Editor sees two. */
   stages?: readonly StageId[];
   badges?: Partial<Record<StageId, StageBadge>>;
@@ -29,6 +30,7 @@ export type StageBarProps = {
 export function StageBar({
   active,
   onSelect,
+  onTabSelect = onSelect,
   stages,
   badges,
   form = "bar",
@@ -52,7 +54,7 @@ export function StageBar({
         tabIndex={selected ? 0 : -1}
         className="sys-stage-tab"
         title={stage.label}
-        onClick={() => onSelect(stage.id)}
+        onClick={() => onTabSelect(stage.id)}
       >
         <SystemIcon name={stage.icon} size={form === "tabs" ? 24 : 16} />
         <span className="sys-stage-label">{stage.label}</span>

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { markUserStageSwitch } from "../../commands/userStageSwitch";
 import { withProgrammaticUi } from "../../presence/followSync";
@@ -28,9 +28,9 @@ function Harness() {
   );
 }
 
-const userSwitch = (stage: "review" | "deliver") =>
+const userSwitch = (stage: "review" | "deliver", source?: "tab") =>
   act(() => {
-    markUserStageSwitch();
+    markUserStageSwitch(source);
     useDawStore.getState().openStage(stage);
   });
 
@@ -69,20 +69,27 @@ describe("useAnnounceStageSwitch", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe("");
   });
 
-  it("leaves a focused Stage tab alone: the tab announces itself", () => {
+  it("leaves a focused tab alone when that tab activates", () => {
     render(<Harness />);
     screen.getByRole("tab").focus();
-    userSwitch("deliver");
+    userSwitch("deliver", "tab");
     expect(screen.getByRole("tab")).toHaveFocus();
     expect(useDawStore.getState().statusAnnouncement).toBe("");
   });
 
-  it("treats a mouse press on a tab as a tab switch where the browser does not focus it", () => {
+  it("keeps a tab activation quiet even in a browser that leaves focus elsewhere", () => {
     render(<Harness />);
-    fireEvent.pointerDown(screen.getByRole("tab"));
-    screen.getByRole("tab").blur();
-    userSwitch("review");
+    userSwitch("review", "tab");
     expect(useDawStore.getState().statusAnnouncement).toBe("");
+    expect(screen.getByRole("main")).not.toHaveFocus();
+  });
+
+  it("announces a stage command even when a Stage tab had focus", () => {
+    render(<Harness />);
+    screen.getByRole("tab").focus();
+    userSwitch("review");
+    expect(useDawStore.getState().statusAnnouncement).toBe("Review stage");
+    expect(screen.getByRole("main")).toHaveFocus();
   });
 
   it("announces but keeps focus in a field", () => {
