@@ -1,7 +1,13 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { hostList } from "./guestLink";
-import { createRecordRoom } from "./recordRoom";
+import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
+import {
+  createRecordRoom,
+  hostRecordSnapshot,
+  joinAsGuest,
+  markSharecutE2e,
+} from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
 import {
@@ -314,6 +320,83 @@ test.describe("Invite sheet", () => {
       await expect(
         sheet.getByRole("button", { name: "End room" }),
       ).toBeVisible();
+    });
+  });
+
+  test.describe("with a synthetic participant", () => {
+    test.use({ launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] } });
+
+    test("Escape keeps the room, then closes Invite and restores header focus", async ({
+      page,
+      browser,
+      baseURL,
+    }) => {
+      await withShareableProject(async (projectPath) => {
+        await openProject(page, projectPath);
+        const room = await createRecordRoom(page, projectPath);
+        const guestContext = await browser.newContext({ baseURL });
+        try {
+          const guest = await guestContext.newPage();
+          await markSharecutE2e(guest);
+          await joinAsGuest(guest, room.guest.token, "Synthetic guest");
+          await expect
+            .poll(async () =>
+              (await hostRecordSnapshot(page, projectPath)).participants.some(
+                (person) =>
+                  person.display_name === "Synthetic guest" && person.connected,
+              ),
+            )
+            .toBe(true);
+
+          await goToStage(page, "deliver");
+          const invite = page
+            .locator(".stage-frame-header")
+            .getByRole("button", { name: "Invite", exact: true });
+          const sheet = page.getByRole("dialog", { name: "Invite" });
+          const end = sheet.getByRole("button", {
+            name: "End room",
+            exact: true,
+          });
+          const keep = sheet.getByRole("button", {
+            name: "Keep room",
+            exact: true,
+          });
+          const revokes: string[] = [];
+          page.on("request", (request) => {
+            if (
+              request.method() === "POST" &&
+              /\/api\/shares\/(?:rooms\/)?[^/]+\/revoke$/.test(
+                new URL(request.url()).pathname,
+              )
+            )
+              revokes.push(request.method());
+          });
+
+          await invite.click();
+          await expect(sheet).toBeVisible();
+          await end.click();
+          await expect(keep).toBeFocused();
+          await page.keyboard.press("Escape");
+          await expect(keep).toHaveCount(0);
+          await expect(sheet).toBeVisible();
+          await expect(end).toBeFocused();
+
+          await page.keyboard.press("Escape");
+          await expect(sheet).toBeHidden();
+          await expect(invite).toBeFocused();
+
+          await invite.click();
+          await expect(end).toBeVisible();
+          expect(
+            (await hostList(page, projectPath)).some(
+              (link) => link.session_id === room.session_id && link.usable,
+            ),
+          ).toBe(true);
+          expect(revokes).toEqual([]);
+        } finally {
+          await guestContext.close();
+        }
+      });
     });
   });
 
