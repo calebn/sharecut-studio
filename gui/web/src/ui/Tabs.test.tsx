@@ -49,10 +49,13 @@ describe("TabList", () => {
     expect(screen.getByRole("button", { name: "After panels" })).toHaveFocus();
   });
 
-  it("forwards padding clicks to the selected tab without adding a tab stop", async () => {
+  it("forwards padding clicks without scrolling or adding a tab stop", async () => {
     render(<Harness />);
+    const selected = screen.getByRole("tab", { name: "one" });
+    const focus = vi.spyOn(selected, "focus");
     await userEvent.click(screen.getByRole("tablist"));
-    expect(screen.getByRole("tab", { name: "one" })).toHaveFocus();
+    expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+    expect(selected).toHaveFocus();
     expect(screen.getByRole("tablist")).toHaveAttribute("tabindex", "-1");
     act(() => screen.getByRole("tab", { name: "three" }).focus());
     expect(screen.getByRole("tab", { name: "three" })).toHaveFocus();
