@@ -1,6 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { newFinger } from "./finger";
+import { withShareableProject } from "./shareableProject";
 import { openProject, phone } from "./stageNav";
 
 test.use({
@@ -8,6 +9,42 @@ test.use({
   hasTouch: true,
   reducedMotion: "reduce",
 });
+
+async function sheetDrag(
+  page: Page,
+  grip: Locator,
+  finger: Awaited<ReturnType<typeof newFinger>>,
+) {
+  const center = async () => {
+    const box = (await grip.boundingBox())!;
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  await page.evaluate(() => {
+    const w = window as unknown as { lastMove: number };
+    w.lastMove = 0;
+    addEventListener(
+      "pointermove",
+      () => (w.lastMove = performance.now()),
+      true,
+    );
+  });
+  return async (dy: number) => {
+    const from = await center();
+    await finger.down(from);
+    await finger.slide({ x: from.x, y: from.y + dy }, 12, 30);
+    // Lifting straight after a move reads as a flick; let the finger rest first.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            performance.now() -
+            (window as unknown as { lastMove: number }).lastMove,
+        ),
+      )
+      .toBeGreaterThan(150);
+    await finger.up();
+  };
+}
 
 test("a finger drags the phone Inspector sheet through its detents and off the screen", async ({
   page,
@@ -25,35 +62,7 @@ test("a finger drags the phone Inspector sheet through its detents and off the s
   await expect(grip).toHaveAttribute("aria-valuetext", "Half height");
   const finger = await newFinger(context, page, browserName);
   const height = async () => (await sheet.boundingBox())!.height;
-  const center = async () => {
-    const box = (await grip.boundingBox())!;
-    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  };
-  await page.evaluate(() => {
-    const w = window as unknown as { lastMove: number };
-    w.lastMove = 0;
-    addEventListener(
-      "pointermove",
-      () => (w.lastMove = performance.now()),
-      true,
-    );
-  });
-  const drag = async (dy: number) => {
-    const from = await center();
-    await finger.down(from);
-    await finger.slide({ x: from.x, y: from.y + dy }, 12, 30);
-    // Lifting straight after a move reads as a flick; let the finger rest first.
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            performance.now() -
-            (window as unknown as { lastMove: number }).lastMove,
-        ),
-      )
-      .toBeGreaterThan(150);
-    await finger.up();
-  };
+  const drag = await sheetDrag(page, grip, finger);
 
   const half = await height();
   await drag(-300);
@@ -80,14 +89,57 @@ test.describe("a phone held sideways", () => {
 
   test("a 667x375 phone shell gets the Inspector sheet and no column", async ({
     page,
+    context,
+    browserName,
   }) => {
-    await openProject(page, e2eProjectPath);
-    await phone.showTimeline(page);
-    const header = page.locator(".sys-track-main").first();
-    await header.focus();
-    await header.press("Enter");
-    await expect(page.locator(".stage-frame--phone")).toBeVisible();
-    await expect(page.locator(".sys-inspector--phone")).toBeVisible();
-    await expect(page.locator(".bottom-sheet--column")).toHaveCount(0);
+    await withShareableProject(async (projectPath) => {
+      await openProject(page, projectPath);
+      await phone.showTimeline(page);
+      const header = page.locator(".sys-track-main").first();
+      const sheet = page.getByRole("dialog", {
+        name: "Inspector",
+        exact: true,
+      });
+      const selectedTracks = page.locator(".sys-track[data-selected]");
+      const openInspector = async () => {
+        await header.focus();
+        await header.press("Enter");
+        await expect(sheet).toBeVisible();
+      };
+
+      await openInspector();
+      await expect(page.locator(".stage-frame--phone")).toBeVisible();
+      await expect(sheet).toHaveClass(/sys-inspector--phone/);
+      await expect(page.locator(".bottom-sheet--column")).toHaveCount(0);
+
+      const savedName = "Landscape dismissal fixture";
+      const name = sheet.getByRole("textbox", { name: "Name", exact: true });
+      await name.fill(savedName);
+      await name.press("Enter");
+      await expect(header).toContainText(savedName);
+      await sheet.getByRole("button", { name: "Close", exact: true }).tap();
+      await expect(sheet).toHaveCount(0);
+      await expect(selectedTracks).toContainText(savedName);
+      await expect(header).toBeFocused();
+
+      await openInspector();
+      await expect(name).toHaveValue(savedName);
+      const grip = sheet.getByRole("slider", { name: "Sheet height" });
+      await grip.press("Home");
+      await expect(grip).toHaveAttribute("aria-valuetext", "Dock");
+      const drag = await sheetDrag(
+        page,
+        grip,
+        await newFinger(context, page, browserName),
+      );
+      await drag(200);
+      await expect(sheet).toHaveCount(0);
+      await expect(selectedTracks).toHaveCount(0);
+      await expect(header).toBeFocused();
+
+      await page.reload();
+      await phone.showTimeline(page);
+      await expect(header).toContainText(savedName);
+    });
   });
 });
