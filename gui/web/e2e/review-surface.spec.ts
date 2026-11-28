@@ -143,13 +143,13 @@ for (const theme of ["light", "dark"] as const) {
           await field.fill(unsent);
           await field.press("Escape");
           await expect(dock).toHaveCount(0);
-          await expect(guest.locator(".rv-stage")).toBeFocused();
+          await expect(comment).toBeFocused();
 
           await comment.tap();
           await expect(field).toHaveValue(unsent);
           await dock.getByRole("button", { name: "Close", exact: true }).tap();
           await expect(dock).toHaveCount(0);
-          await expect(guest.locator(".rv-stage")).toBeFocused();
+          await expect(comment).toBeFocused();
 
           await comment.tap();
           await expect(field).toHaveValue(unsent);
