@@ -212,10 +212,26 @@ test.describe("ShareCut Studio mobile smoke", () => {
     ).toBe(true);
     await expectTrackSheetTouchTargets(page);
     await expectPageAxeClean(page);
-    await sheet
+    const more = sheet
       .locator(".sys-actions--dock")
-      .getByRole("button", { name: "More" })
-      .click();
+      .getByRole("button", { name: "More", exact: true });
+    const selected = page.locator(".sys-track[data-selected]");
+    await expect(selected).toHaveCount(1);
+    const trackTitle = sheet.getByRole("textbox", {
+      name: "Name",
+      exact: true,
+    });
+    const name = await trackTitle.inputValue();
+    const selectedText = await selected.innerText();
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/document/command"
+      )
+        writes.push(request.postData() ?? "");
+    });
+    await more.click();
     await expect(
       page.getByRole("menuitem", { name: "Move track down" }),
     ).toBeEnabled();
@@ -225,7 +241,16 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await expect(
       page.getByRole("menuitem", { name: "Smooth all joins" }),
     ).toBeEnabled();
+    await expect(
+      page.getByRole("menuitem", { name: "Move track down" }),
+    ).toBeFocused();
     await page.keyboard.press("Escape");
+    await expect(page.locator(".ui-menu-panel")).toHaveCount(0);
+    await expect(sheet).toBeVisible();
+    await expect(trackTitle).toHaveValue(name);
+    await expect(selected).toHaveText(selectedText);
+    await expect(more).toBeFocused();
+    expect(writes).toEqual([]);
   });
 
   test.describe("fixed playhead at fit zoom (#385)", () => {
