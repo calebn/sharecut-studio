@@ -317,14 +317,17 @@ test.describe("Invite sheet", () => {
     });
   });
 
-  test("the header Invite opens on every stage, and Escape returns focus to it", async ({
+  test("the header Invite opens in Edit and Deliver, and Escape returns focus to it", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
       await openProject(page, projectPath);
       for (const stage of ["edit", "deliver"] as const) {
         await goToStage(page, stage);
-        await openProjectDialog(page, "share");
+        const invite = page
+          .locator(".stage-frame-header")
+          .getByRole("button", { name: "Invite", exact: true });
+        await invite.click();
         const sheet = page.getByRole("dialog", { name: "Invite" });
         await expect(sheet).toBeVisible();
         await expect(
@@ -332,6 +335,7 @@ test.describe("Invite sheet", () => {
         ).toBeVisible();
         await page.keyboard.press("Escape");
         await expect(sheet).toBeHidden();
+        await expect(invite).toBeFocused();
       }
     });
   });
