@@ -261,6 +261,15 @@ for (const { shell, viewport } of SHELLS) {
             await page
               .getByRole("button", { name: /^Chapter Opening,/ })
               .click();
+            const inspect = page
+              .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+              .getByRole("button", { name: "Inspect", exact: true });
+            const tools = page.getByRole("button", {
+              name: /^Tools(, (Timeline|Script))?(, range armed)?$/,
+            });
+            const folded = shell === "phone" && !(await inspect.isVisible());
+            const opener = folded ? tools : inspect;
+            if (shell === "phone") await expect(opener).toBeVisible();
             await inspectSelection(page);
             const dialog = sheet(page);
             const time = dialog.getByRole("spinbutton", { name: "Time" });
@@ -299,11 +308,16 @@ for (const { shell, viewport } of SHELLS) {
             await title.press("Escape");
             await expect(dialog).toHaveCount(0);
             if (shell === "phone") {
-              await expect(
-                page
-                  .getByRole("group", { name: /^(Selection|Edit) actions$/ })
-                  .getByRole("button", { name: "Inspect", exact: true }),
-              ).toBeFocused();
+              const active = await page.evaluate(() => ({
+                tag: document.activeElement?.tagName,
+                label: document.activeElement?.getAttribute("aria-label"),
+                text: document.activeElement?.textContent?.trim().slice(0, 80),
+              }));
+              console.log("Marker Inspector dismissal focus", {
+                folded,
+                active,
+              });
+              await expect(opener).toBeFocused();
             }
 
             await inspectSelection(page);
