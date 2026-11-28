@@ -23,6 +23,7 @@ const TUNNEL_POLL_MS = 5_000;
 test.use({
   viewport: { width: 1280, height: 900 },
   permissions: ["clipboard-read", "clipboard-write"],
+  launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
 });
 
 /** The Invite sheet, opened from the header's Invite on `stage`. */
@@ -324,8 +325,6 @@ test.describe("Invite sheet", () => {
   });
 
   test.describe("with a synthetic participant", () => {
-    test.use({ launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] } });
-
     test("Escape keeps the room, then closes Invite and restores header focus", async ({
       page,
       browser,
