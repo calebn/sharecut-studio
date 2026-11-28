@@ -296,6 +296,31 @@ describe("pipeline working-set request ownership", () => {
     expect(hook.result.current.loadError).toBeNull();
   });
 
+  it("retires a pending fresh read when a newer reload starts", async () => {
+    const initial = pipelineConfig();
+    const stale = deferred<PipelineConfigResponse>();
+    const reloaded = pipelineConfig({ enabled_steps: ["reloaded"] });
+    vi.mocked(loadPipelineConfig)
+      .mockResolvedValueOnce(initial)
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce(reloaded);
+    const hook = renderHook(() => usePipelineWorkingSet("/a", true));
+    await waitFor(() => expect(hook.result.current.cfg).toBe(initial));
+
+    let reading!: Promise<PipelineConfigResponse | null>;
+    act(() => {
+      reading = hook.result.current.fetchFresh();
+    });
+    act(() => hook.result.current.reload());
+    await waitFor(() => expect(hook.result.current.cfg).toBe(reloaded));
+
+    await act(async () => {
+      stale.resolve(pipelineConfig({ enabled_steps: ["stale"] }));
+      await expect(reading).resolves.toBeNull();
+    });
+    expect(hook.result.current.cfg).toBe(reloaded);
+  });
+
   it("accepts a fresh-read command in the same event as reload", async () => {
     const reload = deferred<PipelineConfigResponse>();
     const fresh = pipelineConfig({ enabled_steps: ["fresh-command"] });

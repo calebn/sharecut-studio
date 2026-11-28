@@ -629,6 +629,15 @@ describe("TimelineCreateMenu phone form", () => {
       "Record here",
       "Add volume point",
     ]);
+    const split = screen.getByRole("button", { name: "Split here" });
+    const noteId = split.getAttribute("aria-describedby");
+    expect(noteId).toBeTruthy();
+    const note = document.getElementById(noteId ?? "");
+    expect(dialog).toContainElement(note);
+    expect(note).toHaveTextContent("Cuts at this time, not the playhead");
+    expect(split).toHaveAccessibleDescription(
+      "Cuts at this time, not the playhead",
+    );
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.body.querySelector(".timeline-create-layer")).toBeNull();
     expect(useDawStore.getState().statusAnnouncement).toBe(
