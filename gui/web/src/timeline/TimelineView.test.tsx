@@ -50,12 +50,27 @@ import {
   RULER_HEIGHT,
 } from "../utils/layout";
 import { domToLogicalScrollLeft } from "../utils/timelineViewport";
+import type { HitRoutingOptions } from "./hitRouting";
 import { TimelineView } from "./TimelineView";
 import { useTimelineMetrics } from "./timelineMetrics";
 
 vi.mock("../api/clipBleed", () => ({
   loadClipBleedInspection: vi.fn(),
 }));
+
+const overlayRouter = vi.hoisted(() => ({
+  options: null as HitRoutingOptions | null,
+}));
+vi.mock("./hitRouting", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./hitRouting")>();
+  return {
+    ...actual,
+    attachHitRouting: (...args: Parameters<typeof actual.attachHitRouting>) => {
+      overlayRouter.options = args[1];
+      return actual.attachHitRouting(...args);
+    },
+  };
+});
 
 const execute = vi.hoisted(() => vi.fn());
 vi.mock("../commands/execute", async (importOriginal) => ({
@@ -1047,6 +1062,52 @@ describe("TimelineView lane fit", () => {
     (
       container.querySelector(".timeline-area") as HTMLElement
     ).style.getPropertyValue("--lane-height");
+
+  it("routes chooser and detent changes to the overlays using their own measurement nodes", () => {
+    overlayRouter.options = null;
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    const scroller = container.querySelector(".timeline-scroll");
+    const lanes = container.querySelector(".lane-row")?.parentElement;
+    const router = overlayRouter.options as HitRoutingOptions | null;
+    if (!scroller || !lanes || !router)
+      throw new Error("Expected timeline wiring");
+    place(scroller, { left: 20, top: 30, right: 820, bottom: 530 });
+    place(lanes, { left: 50, top: 100, right: 650, bottom: 300 });
+    const readScroller = vi.spyOn(scroller, "getBoundingClientRect");
+
+    act(() =>
+      router.onChooser?.({
+        origin: { x: 250, y: 120 },
+        hits: [],
+        fingerDown: false,
+        over: null,
+        armed: false,
+      }),
+    );
+    expect(
+      document.querySelector(".timeline-chooser-layer"),
+    ).toBeInTheDocument();
+    expect(readScroller).toHaveBeenCalled();
+
+    act(() =>
+      router.onDetent?.({
+        x: 250,
+        boundary: { sec: 10, label: "the playhead" },
+      }),
+    );
+    const mark = document.querySelector(".detent-mark");
+    expect(mark).toHaveStyle({ left: "250px", top: "100px", height: "200px" });
+    act(() => {
+      router.onChooser?.(null);
+      router.onDetent?.(null);
+    });
+    expect(document.querySelector(".timeline-chooser-layer")).toBeNull();
+    expect(mark).not.toBeInTheDocument();
+  });
 
   it("fits lanes to the measured stage with one scroller observer", () => {
     const { container } = render(
