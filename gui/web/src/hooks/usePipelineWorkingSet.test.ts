@@ -47,6 +47,55 @@ describe("pipeline working-set request ownership", () => {
     expect(hook.result.current.cfg).toBe(expected);
   });
 
+  it("ignores the discarded StrictMode read while the replay load is pending", async () => {
+    const discarded = deferred<PipelineConfigResponse>();
+    const replay = deferred<PipelineConfigResponse>();
+    vi.mocked(loadPipelineConfig)
+      .mockReturnValueOnce(discarded.promise)
+      .mockReturnValueOnce(replay.promise);
+    const hook = renderHook(() => usePipelineWorkingSet("/a", true), {
+      reactStrictMode: true,
+    });
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+
+    await act(async () => discarded.reject(new Error("Discarded load")));
+    expect(hook.result.current.cfg).toBeNull();
+    expect(hook.result.current.loadError).toBeNull();
+
+    const fresh = pipelineConfig({ enabled_steps: ["current"] });
+    await act(async () => replay.resolve(fresh));
+    expect(hook.result.current.cfg).toBe(fresh);
+  });
+
+  it("retires the in-flight read and disables saved callbacks on unmount", async () => {
+    const initial = pipelineConfig();
+    const pendingRead = deferred<PipelineConfigResponse>();
+    vi.mocked(loadPipelineConfig)
+      .mockResolvedValueOnce(initial)
+      .mockReturnValueOnce(pendingRead.promise)
+      .mockResolvedValue(initial);
+    const hook = renderHook(() => usePipelineWorkingSet("/a", true));
+    await waitFor(() => expect(hook.result.current.cfg).toBe(initial));
+    const { fetchFresh, reload, update } = hook.result.current;
+    let reading!: ReturnType<typeof fetchFresh>;
+    act(() => {
+      reading = fetchFresh();
+    });
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+
+    hook.unmount();
+    pendingRead.resolve(pipelineConfig({ unattended: true }));
+    await expect(reading).resolves.toBeNull();
+
+    reload();
+    await expect(fetchFresh()).resolves.toBeNull();
+    const recipe = vi.fn(() => ({ unattended: true }));
+    await expect(update(recipe)).resolves.toBe(false);
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    expect(putPipelineConfig).not.toHaveBeenCalled();
+    expect(recipe).not.toHaveBeenCalled();
+  });
+
   it("serializes same-event recipes and reads fresh settings before every save", async () => {
     const firstSave = deferred<PipelineConfigResponse>();
     const initial = pipelineConfig();
