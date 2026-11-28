@@ -17,16 +17,16 @@ function caret(field: TextField): [number, number] | null {
   }
 }
 
-function keepFocus(host: HTMLElement, move: () => void): void {
-  const active = host.ownerDocument.activeElement;
+function keepFocus(container: HTMLElement, move: () => void): void {
+  const active = container.ownerDocument.activeElement;
   const field =
-    active instanceof HTMLElement && host.contains(active) ? active : null;
+    active instanceof HTMLElement && container.contains(active) ? active : null;
   const text =
     field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement
       ? field
       : null;
   const range = text ? caret(text) : null;
-  const body = host.querySelector<HTMLElement>(".bottom-sheet-body");
+  const body = container.querySelector<HTMLElement>(".bottom-sheet-body");
   const scrollTop = body?.scrollTop ?? 0;
   move();
   // A move resets the body's scroll offset.
