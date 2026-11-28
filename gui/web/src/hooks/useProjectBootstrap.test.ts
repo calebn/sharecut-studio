@@ -84,8 +84,40 @@ describe("sequenced project bootstrap", () => {
       "detail",
       expect.any(AbortSignal),
     );
+    expect(applyDocumentSnapshot).toHaveBeenCalledWith(
+      { server_seq: 0, state_token: token, project },
+      { scope: documentScope() },
+    );
     expect(hydrate).not.toHaveBeenCalled();
   });
+  it("does not load or take document authority without a project path", () => {
+    const currentScope = resetDocumentAuthority("/tmp/current.json");
+    const { result } = renderHook(() => useProjectBootstrap(""));
+    act(() => result.current.retry());
+
+    expect(loadDocumentState).not.toHaveBeenCalled();
+    expect(documentScope()).toEqual(currentScope);
+    expect(result.current.failure).toBeNull();
+  });
+
+  it("does not apply a shell after document authority changes during its read", async () => {
+    const pending = deferred<DocumentSnapshot>();
+    vi.mocked(loadDocumentState).mockReturnValueOnce(pending.promise);
+    vi.mocked(applyDocumentSnapshot).mockClear();
+    renderHook(() => useProjectBootstrap("/tmp/p.json"));
+    const signal = vi.mocked(loadDocumentState).mock.calls[0][2];
+    const nextScope = resetDocumentAuthority("/tmp/next.json");
+
+    await act(async () => {
+      pending.resolve({ server_seq: 0, state_token: token, project: shell() });
+    });
+
+    expect(signal?.aborted).toBe(false);
+    expect(applyDocumentSnapshot).not.toHaveBeenCalled();
+    expect(documentScope()).toEqual(nextScope);
+    expect(useDawStore.getState().project).toBeNull();
+  });
+
   it("aborts on unmount and rejects a late shell", async () => {
     let resolve!: (value: DocumentSnapshot) => void;
     vi.mocked(loadDocumentState).mockImplementation(
