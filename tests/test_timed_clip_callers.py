@@ -4,6 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.range_edits import edit_selected_range
+from podcast_mcp.edits.range_target import build_range_target
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.engines.asr_silence import placement_digest
 from podcast_mcp.engines.clips_ops import RangeEdgeFade, extract_clips_in_timeline_range
 from podcast_mcp.engines.lane_window import lane_clip_placements, lane_placements
@@ -14,6 +18,7 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.models.clip_timing import ClipTiming, QuietSpan, TimingStep
+from podcast_mcp.models.episode import RangeInterval
 
 # Source 0-10 s at timeline 5 s: a 2 s hole at source 4 s and a skip of source 8-9 s.
 # It plays as source [0,4) at 5, [4,8) at 11 and [9,10) at 15; it ends at 16.
@@ -53,6 +58,27 @@ def test_the_fixture_clip_plays_as_three_pieces() -> None:
 
     assert clip.virtual_pieces() == PIECES
     assert clip.timeline_end == 16.0
+
+
+def test_exact_range_mute_across_a_timing_skip_leaves_project_unchanged(tmp_path: Path) -> None:
+    project = _project(tmp_path, _clip(_timing()))
+    # Timeline [14, 16) plays source [7, 8) and [9, 10), skipping [8, 9).
+    target = build_range_target(project, [RangeInterval(start=14, end=16)], ["host"])
+    assert [clip.id for clip in target.clips] == ["c"]
+    before = project.model_dump(mode="json")
+
+    with pytest.raises(ScopeChangedAtApproval, match="one complete, continuous placement"):
+        edit_selected_range(
+            project,
+            [target],
+            "mute",
+            propose=False,
+            reason="host:range",
+            action_id="timed_mute",
+            defaults=load_defaults(),
+        )
+
+    assert project.model_dump(mode="json") == before
 
 
 def test_the_placement_digest_follows_the_timing_steps(tmp_path: Path) -> None:
