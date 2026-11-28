@@ -23,12 +23,16 @@ vi.mock("./state/store", () => ({
     children,
     projectPath,
     initialProject,
+    guestMode,
+    shareCapabilities,
     shareAuthor,
     shareTranscriptWords,
   }: {
     children: ReactNode;
     projectPath: string;
     initialProject: ProjectView | null;
+    guestMode?: string | null;
+    shareCapabilities?: string[] | null;
     shareAuthor?: string | null;
     shareTranscriptWords?: boolean;
   }) => (
@@ -36,6 +40,8 @@ vi.mock("./state/store", () => ({
       aria-label="Bootstrap provider"
       data-path={projectPath}
       data-cached-name={initialProject?.meta.name ?? ""}
+      data-guest-mode={guestMode ?? undefined}
+      data-capabilities={JSON.stringify(shareCapabilities)}
       data-author={shareAuthor ?? ""}
       data-transcript-words={String(shareTranscriptWords)}
     >
@@ -182,7 +188,7 @@ describe("App bootstrap request lifetime", () => {
     },
   );
 
-  it("gives an offline cached review no transcript words", async () => {
+  it("opens an offline cached review in view mode without live capabilities or transcript words", async () => {
     offline.load.mockResolvedValue({
       project: cachedProject(),
       saved_at: Date.now(),
@@ -192,6 +198,8 @@ describe("App bootstrap request lifetime", () => {
     });
     render(<App />);
     await screen.findByText("Studio body");
+    expect(provider()).toHaveAttribute("data-guest-mode", "view");
+    expect(provider()).toHaveAttribute("data-capabilities", "null");
     expect(provider()).toHaveAttribute("data-transcript-words", "false");
   });
 
