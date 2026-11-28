@@ -3,11 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
+import { takeUserStageSwitch } from "../commands/userStageSwitch";
 import { useStageBarProps } from "../stage/frame/useStageBarProps";
 import { useDawStore } from "../state/dawStore";
 import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { minimalProject } from "../test/fixtures";
 import { StageBar, type StageBarProps } from "./StageBar";
+import { StageMenu } from "./StageMenu";
 
 const iconRenders = vi.hoisted(() => vi.fn());
 
@@ -61,6 +63,36 @@ describe("clicking the active stage", () => {
     expect(useDawStore.getState().stage).toBe("review");
     off();
   });
+});
+
+it("distinguishes a stage tab from a stage menu selection", async () => {
+  clearRegisteredCommands();
+  registerDawCommands();
+  useDawStore.getState().hydrate("/tmp/stage-source.json", minimalProject());
+  useDawStore.setState({ stage: "edit" });
+  function Wired() {
+    const props = useStageBarProps();
+    return props ? (
+      <>
+        <StageBar {...props} />
+        <StageMenu {...props} />
+      </>
+    ) : null;
+  }
+
+  try {
+    render(<Wired />);
+    await userEvent.click(screen.getByRole("tab", { name: /^Review/ }));
+    expect(takeUserStageSwitch()).toBe("tab");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Stage menu, Review" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    expect(takeUserStageSwitch()).toBe("command");
+  } finally {
+    takeUserStageSwitch();
+    clearRegisteredCommands();
+  }
 });
 
 it("returns stage-list padding focus to the active stage", async () => {

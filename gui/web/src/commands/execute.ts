@@ -30,7 +30,7 @@ export function clearRegisteredCommands(): void {
 export async function execute(
   id: string,
   args: Record<string, unknown> = {},
-  options?: { ctx?: CommandContext; skipWhen?: boolean },
+  options?: { ctx?: CommandContext; skipWhen?: boolean; stageTab?: boolean },
 ): Promise<ExecuteResult> {
   const def = COMMANDS[id];
   if (!def) {
@@ -48,7 +48,8 @@ export async function execute(
     }
   }
   const stageBefore = useDawStore.getState().stage;
-  if (id.startsWith("stage.")) markUserStageSwitch();
+  if (id.startsWith("stage."))
+    markUserStageSwitch(options?.stageTab ? "tab" : "command");
   const result = await handler(args, ctx);
   if (id.startsWith("stage.") && useDawStore.getState().stage === stageBefore)
     cancelUserStageSwitch();

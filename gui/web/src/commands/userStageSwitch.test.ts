@@ -17,13 +17,19 @@ afterEach(() => clearRegisteredCommands());
 describe("userStageSwitch", () => {
   it("is taken once", () => {
     markUserStageSwitch();
-    expect(takeUserStageSwitch()).toBe(true);
-    expect(takeUserStageSwitch()).toBe(false);
+    expect(takeUserStageSwitch()).toBe("command");
+    expect(takeUserStageSwitch()).toBeNull();
+  });
+
+  it("consumes tab intent separately from a stage command", () => {
+    markUserStageSwitch("tab");
+    expect(takeUserStageSwitch()).toBe("tab");
+    expect(takeUserStageSwitch()).toBeNull();
   });
 
   it("ignores a mark made while a Follow leader drives", () => {
     withProgrammaticUi(() => markUserStageSwitch());
-    expect(takeUserStageSwitch()).toBe(false);
+    expect(takeUserStageSwitch()).toBeNull();
   });
 
   it("is marked by running a stage command, not by another command", async () => {
@@ -33,13 +39,13 @@ describe("userStageSwitch", () => {
       return { status: "ok" as const };
     });
     await execute("stage.review", {}, { skipWhen: true });
-    expect(takeUserStageSwitch()).toBe(true);
+    expect(takeUserStageSwitch()).toBe("command");
     registerCommand("stage.edit", () => ({ status: "ok" as const }));
     useDawStore.setState({ stage: "edit" });
     await execute("stage.edit", { surface: "text" }, { skipWhen: true });
-    expect(takeUserStageSwitch()).toBe(false);
+    expect(takeUserStageSwitch()).toBeNull();
     registerCommand("view.toggleScript", () => ({ status: "ok" as const }));
     await execute("view.toggleScript", {}, { skipWhen: true });
-    expect(takeUserStageSwitch()).toBe(false);
+    expect(takeUserStageSwitch()).toBeNull();
   });
 });

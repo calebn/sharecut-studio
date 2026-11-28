@@ -314,6 +314,40 @@ test.describe("Stage shell on desktop", () => {
     await expect(page.getByRole("main", { name: "Edit" })).toBeVisible();
   });
 
+  test("announces a stage shortcut after a StageBar padding click without duplicating tab announcements", async ({
+    page,
+  }) => {
+    await openProject(page);
+    const edit = stageTab(page, "edit");
+    const review = stageTab(page, "review");
+    const tablist = page.getByRole("tablist", { name: "Stages" });
+    const live = page.locator(
+      '[role="status"][aria-live="polite"][aria-atomic="true"]',
+    );
+
+    const padding = await tablist.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const y = box.y + box.height / 2;
+      for (let x = box.x + 1; x < box.right; x += 1) {
+        if (document.elementFromPoint(x, y) === element) return { x, y };
+      }
+      throw new Error("Expected an empty part of the StageBar");
+    });
+    await page.mouse.click(padding.x, padding.y);
+    await expect(edit).toBeFocused();
+
+    await page.keyboard.press("ControlOrMeta+4");
+    await expect(review).toHaveAttribute("aria-selected", "true");
+    await expect(live).toHaveText("Review stage");
+    await expect(page.locator("#stage-body")).toBeFocused();
+
+    // Chromium focuses a directly clicked tab. Safari can keep focus elsewhere,
+    // so the live-region check below is the cross-browser assertion.
+    await edit.click();
+    await expect(edit).toHaveAttribute("aria-selected", "true");
+    await expect(live).toHaveText("Review stage");
+  });
+
   test("saves a chapter added in Deliver to the project", async ({ page }) => {
     const chapterCount = async () => {
       const response = await page.request.get(
