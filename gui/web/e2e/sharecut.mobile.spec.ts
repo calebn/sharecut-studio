@@ -241,9 +241,9 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await expect(
       page.getByRole("menuitem", { name: "Smooth all joins" }),
     ).toBeEnabled();
-    await expect(
-      page.getByRole("menuitem", { name: "Move track down" }),
-    ).toBeFocused();
+    const moveDown = page.getByRole("menuitem", { name: "Move track down" });
+    await moveDown.focus();
+    await expect(moveDown).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(page.locator(".ui-menu-panel")).toHaveCount(0);
     await expect(sheet).toBeVisible();

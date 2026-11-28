@@ -266,6 +266,25 @@ test.describe("Stage shell on desktop", () => {
     await expect(tools).toBeFocused();
   });
 
+  test("folded Mix dismisses from the scrim and returns focus to Tools", async ({
+    page,
+  }) => {
+    await openProject(page);
+    await page.setViewportSize({ width: 1280, height: 220 });
+    const opener = page.getByRole("button", { name: "Tools", exact: true });
+    await opener.click();
+    const tools = page.getByRole("dialog", { name: "Tools", exact: true });
+    await tools.getByRole("button", { name: "Mix", exact: true }).click();
+    await expect(tools).toHaveCount(0);
+    const mix = page.getByRole("dialog", { name: "Mix", exact: true });
+    await expect(mix).toBeVisible();
+    await mix.getByRole("button", { name: "Close Mix", exact: true }).click({
+      position: { x: 8, y: 8 },
+    });
+    await expect(mix).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
   test("hides the Player's Comment when a desktop frame folds", async ({
     page,
   }) => {
