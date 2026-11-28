@@ -56,6 +56,43 @@ describe("useEpisodePeaks", () => {
     expect(Math.max(...result.current)).toBe(1);
   });
 
+  it("combines peaks from two successful stem replies", async () => {
+    const first = {
+      ...READY,
+      total_frames: 80,
+      levels: [{ spp: 40, bins: 2 }],
+    };
+    const second = { ...first, key: "secondkey" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url.includes("/api/waveform/status"))
+          return Response.json({
+            format_version: 1,
+            media: { "stem:t1": first, "stem:t2": second },
+          });
+        if (url.includes(`/api/waveform/tiles/${first.key}`))
+          return new Response(
+            Int16Array.from([-32000, 0, 1, -4000, 0, 1]).buffer,
+          );
+        if (url.includes(`/api/waveform/tiles/${second.key}`))
+          return new Response(
+            Int16Array.from([-4000, 0, 1, -16000, 0, 1]).buffer,
+          );
+        throw new Error(`Unexpected waveform request: ${url}`);
+      }),
+    );
+
+    const { result } = renderHook(() => useEpisodePeaks("/p.json", 8, "h1"));
+    await settle();
+
+    const expected = Array<number>(1024).fill(0);
+    expected[0] = 1;
+    expected[512] = 0.5;
+    expect(result.current).toEqual(expected);
+  });
+
   it("stays empty with no stem built", async () => {
     route({ format_version: 1, media: {} });
     const { result } = renderHook(() => useEpisodePeaks("/p.json", 4, "h1"));
