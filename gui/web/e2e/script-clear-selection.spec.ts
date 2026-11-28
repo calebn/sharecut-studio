@@ -91,7 +91,20 @@ for (const { width, height, touch } of [
           const corrected = script
             .getByRole("button", { name: /^My(?: \(.*\))?$/ })
             .first();
+          const fixedCard = page
+            .locator(".ui-toast")
+            .filter({ hasText: "Text fixed: My" });
+          const dismiss = fixedCard.getByRole("button", {
+            name: "Dismiss",
+            exact: true,
+          });
+          await expect(corrected).toHaveAttribute("data-selected");
+          await expect(fixedCard).toBeVisible();
+          if (touch) await dismiss.tap();
+          else await dismiss.click();
+          await expect(fixedCard).toHaveCount(0);
           await expect(corrected).toBeVisible();
+          await expect(corrected).toHaveAttribute("data-selected");
           await expect(clear).toBeVisible();
           await expectPageAxeClean(page, ".sys-script-header");
           if (touch) await clear.tap();
