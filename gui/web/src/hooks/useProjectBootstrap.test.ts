@@ -10,6 +10,7 @@ import {
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { waitsForConnection } from "../shellLoadFailure";
 import { useDawStore } from "../state/dawStore";
+import { deferred } from "../test/deferred";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import { useBackOnline } from "./useBackOnline";
@@ -172,6 +173,56 @@ describe("sequenced project bootstrap", () => {
     const hook = renderHook(() => useProjectBootstrap("/tmp/p.json"));
     await waitFor(() => expect(shellLoads).toBe(2), { timeout: 5_000 });
     expect(hook.result.current.failure).toBeNull();
+  });
+
+  it("stops the warm host bootstrap after ten retries and reports the timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      useDawStore.getState().hydrate("/tmp/p.json", shell());
+      vi.mocked(loadDocumentState).mockRejectedValue(
+        new DOMException("The server didn't answer.", "TimeoutError"),
+      );
+      const hook = renderHook(() => useProjectBootstrap("/tmp/p.json"));
+      await act(async () => vi.advanceTimersByTimeAsync(29_999));
+      expect(loadDocumentState).toHaveBeenCalledTimes(10);
+      expect(hook.result.current.failure).toBeNull();
+
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(hook.result.current.failure).toEqual({
+        audience: "host",
+        kind: "not-answering",
+      });
+      expect(hook.result.current.retrying).toBe(false);
+      await act(async () => vi.advanceTimersByTimeAsync(60_000));
+      expect(loadDocumentState).toHaveBeenCalledTimes(11);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not warm-retry a timeout after the loaded project has cleared", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = deferred<DocumentSnapshot>();
+      useDawStore.getState().hydrate("/tmp/p.json", shell());
+      vi.mocked(loadDocumentState).mockReturnValueOnce(pending.promise);
+      const hook = renderHook(() => useProjectBootstrap("/tmp/p.json"));
+
+      await act(async () => {
+        useDawStore.setState({ project: null });
+        pending.reject(
+          new DOMException("The server didn't answer.", "TimeoutError"),
+        );
+      });
+      expect(hook.result.current.failure).toEqual({
+        audience: "host",
+        kind: "not-answering",
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(30_000));
+      expect(loadDocumentState).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps a live socket scope valid when a failed bootstrap is retried", async () => {
