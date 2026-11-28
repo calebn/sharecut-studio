@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 import wave
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -135,16 +134,25 @@ def test_a_cancel_request_during_attribution_leaves_the_project_alone(
 ) -> None:
     from podcast_mcp.util.progress import raise_if_cancel_requested
 
+    entered = Event()
+    release = Event()
+
     def attributing(*_args, cancel_check, **_kwargs):
-        while True:
-            raise_if_cancel_requested(cancel_check)
-            time.sleep(0.01)
+        entered.set()
+        if not release.wait(timeout=5):
+            raise TimeoutError("test did not release attribution")
+        raise_if_cancel_requested(cancel_check)
+        return SCRIPTED
 
     monkeypatch.setattr("podcast_mcp.services.media.speaker.attribute_speakers", attributing)
     mgr = JobManager()
     job = mgr.start_split_speakers(room, track_id="room", speaker_count=2)
-    mgr.cancel(job.id)
-    mgr.wait(job, timeout=5)
+    try:
+        assert entered.wait(timeout=5), f"attribution did not start: {job.status}: {job.message}"
+        mgr.cancel(job.id)
+    finally:
+        release.set()
+        mgr.wait(job, timeout=5)
     assert (job.status, job.message) == ("cancelled", "Split speakers cancelled")
     assert [t.id for t in ProjectWorkspace.open(room).project.tracks] == ["room"]
 

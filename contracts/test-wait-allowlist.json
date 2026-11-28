@@ -28,7 +28,6 @@
     "tests/conftest.py": 1,
     "tests/test_cross_process_sync.py": 12,
     "tests/test_gui_api.py": 16,
-    "tests/test_gui_speaker_split.py": 1,
     "tests/test_session_sync.py": 2,
     "tests/test_session_sync_presence_delta.py": 3
   }
