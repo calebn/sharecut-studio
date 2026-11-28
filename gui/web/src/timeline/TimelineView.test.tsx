@@ -66,7 +66,7 @@ vi.mock("./hitRouting", async (importOriginal) => {
   return {
     ...actual,
     attachHitRouting: (...args: Parameters<typeof actual.attachHitRouting>) => {
-      overlayRouter.options = args[1];
+      overlayRouter.options = args[1] ?? null;
       return actual.attachHitRouting(...args);
     },
   };
