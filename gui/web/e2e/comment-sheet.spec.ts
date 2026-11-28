@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
@@ -25,9 +25,7 @@ test.afterEach(async ({ page }) => {
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
 
-test("a pin-selected comment opens a usable comment popover at 1440", async ({
-  page,
-}) => {
+async function openPinComment(page: Page) {
   await postDocumentCommand(
     page,
     "e2e-comment-sheet",
@@ -49,6 +47,13 @@ test("a pin-selected comment opens a usable comment popover at 1440", async ({
   const card = page.locator("section.sys-inspector--popover");
   await expect(card.getByRole("heading", { name: "Comment" })).toBeVisible();
   await expect(card.getByText("Tighten this open")).toBeVisible();
+  return card;
+}
+
+test("a pin-selected comment opens a usable comment popover at 1440", async ({
+  page,
+}) => {
+  const card = await openPinComment(page);
   await expect
     .poll(async () => (await card.boundingBox())?.height ?? 0)
     .toBeGreaterThan(100);
@@ -58,4 +63,30 @@ test("a pin-selected comment opens a usable comment popover at 1440", async ({
   await expect(card.getByText("On it")).toBeVisible();
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
   await expect(card.getByRole("button", { name: "Reopen" })).toBeVisible();
+});
+
+test("Escape leaves a comment draft unsent and restores Inspect focus", async ({
+  page,
+}) => {
+  const card = await openPinComment(page);
+  const reply = card.getByRole("textbox", { name: "Reply to Ada" });
+  const inspect = page
+    .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+    .getByRole("button", { name: "Inspect", exact: true });
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    const body = request.postData() ?? "";
+    if (request.method() === "POST" && body.includes('"AddComment"'))
+      writes.push(body);
+  });
+
+  await reply.fill("Unsent audit draft");
+  await reply.press("Escape");
+  await expect(reply).toHaveValue("Unsent audit draft");
+  const close = card.getByRole("button", { name: "Close", exact: true });
+  await expect(close).toBeFocused();
+  await close.press("Escape");
+  await expect(card).toHaveCount(0);
+  await expect(inspect).toBeFocused();
+  expect(writes).toEqual([]);
 });
