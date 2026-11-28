@@ -234,6 +234,12 @@ function closeOnEscape(onClose: () => void) {
   return (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape" || event.defaultPrevented) return;
     if (isImeKey(event)) return;
+    // The menu owns Escape and restores focus to its trigger.
+    if (
+      event.target instanceof Element &&
+      event.target.closest('[role="menu"]')
+    )
+      return;
     event.stopPropagation();
     onClose();
   };
