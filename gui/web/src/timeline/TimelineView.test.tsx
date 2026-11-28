@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { Profiler, type ReactNode } from "react";
+import { Profiler, type ReactNode, useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ClipBleedInspection,
@@ -1107,6 +1107,52 @@ describe("TimelineView lane fit", () => {
     });
     expect(document.querySelector(".timeline-chooser-layer")).toBeNull();
     expect(mark).not.toBeInTheDocument();
+  });
+
+  it("publishes the current zoom action before layout effects run", () => {
+    const originalZoom = useDawStore.getState().applyAnchoredZoom;
+    const previousZoom = vi.fn();
+    const currentZoom = vi.fn();
+    let scroller: Element | null = null;
+
+    function WheelAtLayout() {
+      const zoom = useDawStore((state) => state.applyAnchoredZoom);
+      useLayoutEffect(() => {
+        if (zoom !== currentZoom) return;
+        if (!scroller) throw new Error("Expected a mounted scroller");
+        scroller.dispatchEvent(
+          new WheelEvent("wheel", {
+            bubbles: true,
+            cancelable: true,
+            ctrlKey: true,
+            clientX: 240,
+            clientY: 120,
+            deltaY: -40,
+          }),
+        );
+      }, [zoom]);
+      return null;
+    }
+
+    useDawStore.setState({ applyAnchoredZoom: previousZoom });
+    const view = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView />
+        <WheelAtLayout />
+      </DawProvider>,
+    );
+    try {
+      scroller = view.container.querySelector(".timeline-scroll");
+      act(() => useDawStore.setState({ applyAnchoredZoom: currentZoom }));
+      expect(currentZoom).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Number),
+        240,
+      );
+      expect(previousZoom).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      useDawStore.setState({ applyAnchoredZoom: originalZoom });
+    }
   });
 
   it("fits lanes to the measured stage with one scroller observer", () => {
