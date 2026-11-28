@@ -120,6 +120,11 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
   );
   lines.push("");
 
+  lines.push(
+    "A stage shortcut announces the new stage and moves focus into its content, including when Stage bar padding had focused the current tab. Direct tab activation leaves the announcement to the tab. The compact Stage menu uses the same announcement path as a shortcut.",
+  );
+  lines.push("");
+
   const grouped = byCategory(KEYMAP_COMMANDS);
   for (const cat of KEYMAP_CATEGORY_ORDER) {
     const rows = grouped[cat] ?? [];

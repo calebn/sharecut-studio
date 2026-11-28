@@ -14,6 +14,8 @@ Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Char
 
 Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
+A stage shortcut announces the new stage and moves focus into its content, including when Stage bar padding had focused the current tab. Direct tab activation leaves the announcement to the tab. The compact Stage menu uses the same announcement path as a shortcut.
+
 ## transport
 
 | Shortcut | Command | When | Notes |
