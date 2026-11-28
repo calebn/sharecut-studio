@@ -1701,6 +1701,49 @@ describe("HomeScreen", () => {
       ).toBeInTheDocument();
       expect(open).not.toHaveBeenCalled();
     });
+
+    it("restores a recent card from the server after removal fails", async () => {
+      const user = userEvent.setup();
+      const removal = deferred<void>();
+      const refreshed = deferred<RecentProject[]>();
+      forget.mockReturnValueOnce(removal.promise);
+      list
+        .mockResolvedValueOnce([recent()])
+        .mockReturnValueOnce(refreshed.promise);
+      render(<HomeScreen />);
+
+      await user.click(
+        within(await openMenu(user)).getByRole("menuitem", {
+          name: "Remove from list",
+        }),
+      );
+      expect(forget).toHaveBeenCalledExactlyOnceWith(EP);
+      expect(
+        screen.queryByRole("button", { name: /Rosa/ }),
+      ).not.toBeInTheDocument();
+      expect(list).toHaveBeenCalledTimes(1);
+
+      await act(async () =>
+        removal.reject(new Error("Recent list is unavailable")),
+      );
+      expect(
+        screen.getByText("That episode is still listed. Try again."),
+      ).toBeInTheDocument();
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(
+        screen.queryByRole("button", { name: /Rosa/ }),
+      ).not.toBeInTheDocument();
+
+      await act(async () =>
+        refreshed.resolve([recent({ name: "Rosa updated on the server" })]),
+      );
+      expect(
+        await screen.findByRole("button", {
+          name: /Rosa updated on the server/,
+        }),
+      ).toBeInTheDocument();
+      expect(open).not.toHaveBeenCalled();
+    });
   });
 
   describe("the Home keys", () => {
