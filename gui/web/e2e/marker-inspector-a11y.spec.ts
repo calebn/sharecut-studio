@@ -298,6 +298,13 @@ for (const { shell, viewport } of SHELLS) {
             await expect(title).toHaveValue("Opening");
             await title.press("Escape");
             await expect(dialog).toHaveCount(0);
+            if (shell === "desktop") {
+              await expect(
+                page
+                  .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+                  .getByRole("button", { name: "Inspect", exact: true }),
+              ).toBeFocused();
+            }
 
             await inspectSelection(page);
             await expect(title).toHaveValue("Opening");
