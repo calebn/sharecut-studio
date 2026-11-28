@@ -222,7 +222,10 @@ test.describe("ShareCut Studio mobile smoke", () => {
       exact: true,
     });
     const name = await trackTitle.inputValue();
-    const selectedText = await selected.innerText();
+    await expect(selected).toHaveAttribute("data-presence-anchor", /^track:/);
+    const trackIdentity = (await selected.getAttribute(
+      "data-presence-anchor",
+    ))!;
     const writes: string[] = [];
     page.on("request", (request) => {
       if (
@@ -248,7 +251,11 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await expect(page.locator(".ui-menu-panel")).toHaveCount(0);
     await expect(sheet).toBeVisible();
     await expect(trackTitle).toHaveValue(name);
-    await expect(selected).toHaveText(selectedText);
+    await expect(selected).toHaveCount(1);
+    await expect(selected).toHaveAttribute(
+      "data-presence-anchor",
+      trackIdentity,
+    );
     await expect(more).toBeFocused();
     expect(writes).toEqual([]);
   });
