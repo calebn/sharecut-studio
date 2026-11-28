@@ -181,9 +181,9 @@ export function useReviewQueue(guestShare = false) {
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus, projectPath]);
-  const [heldForPending, setHeldForPending] = useState(pending);
-  if (heldForPending !== pending) {
-    setHeldForPending(pending);
+  const [pendingForHeldRows, setPendingForHeldRows] = useState(pending);
+  if (pendingForHeldRows !== pending) {
+    setPendingForHeldRows(pending);
     const ranges = new Map(
       (pending ?? []).map((e) => [reviewIdOf(e.id), rangeOf(e)]),
     );

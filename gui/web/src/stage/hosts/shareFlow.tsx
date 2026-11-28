@@ -454,9 +454,8 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   });
 
   const refreshMix = useStableCallback(() => {
-    const current = recovery;
-    if (current.kind !== "needs_refresh") return;
-    const { message } = current;
+    if (recovery.kind !== "needs_refresh") return;
+    const { message } = recovery;
     const stale = staleRequest.current;
     if (!stale || !isCurrent(stale.scope)) return;
     const retry: CreateRequest = {
