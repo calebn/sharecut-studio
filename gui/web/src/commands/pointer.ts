@@ -1,3 +1,4 @@
+import type { StageId } from "../types/stage";
 import { execute } from "./execute";
 import type { ExecuteResult } from "./types";
 
@@ -19,4 +20,9 @@ export function executePointerCommand(
   args: Record<string, unknown> = {},
 ): Promise<ExecuteResult> {
   return execute(id, args, { skipWhen: true });
+}
+
+/** Stage tabs provide their own accessible feedback when they activate. */
+export function runStageTabCommand(stage: StageId): void {
+  void execute(`stage.${stage}`, {}, { skipWhen: true, stageTab: true });
 }
