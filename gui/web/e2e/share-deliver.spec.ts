@@ -1,11 +1,10 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { hostList } from "./guestLink";
-import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
   createRecordRoom,
   hostRecordSnapshot,
-  joinAsGuest,
+  joinAsProducer,
   markSharecutE2e,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
@@ -23,7 +22,6 @@ const TUNNEL_POLL_MS = 5_000;
 test.use({
   viewport: { width: 1280, height: 900 },
   permissions: ["clipboard-read", "clipboard-write"],
-  launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
 });
 
 /** The Invite sheet, opened from the header's Invite on `stage`. */
@@ -337,12 +335,19 @@ test.describe("Invite sheet", () => {
         try {
           const guest = await guestContext.newPage();
           await markSharecutE2e(guest);
-          await joinAsGuest(guest, room.guest.token, "Synthetic guest");
+          await test.step("Join the synthetic producer", async () => {
+            await joinAsProducer(
+              guest,
+              room.producer.token,
+              "Synthetic producer",
+            );
+          });
           await expect
             .poll(async () =>
               (await hostRecordSnapshot(page, projectPath)).participants.some(
                 (person) =>
-                  person.display_name === "Synthetic guest" && person.connected,
+                  person.display_name === "Synthetic producer" &&
+                  person.connected,
               ),
             )
             .toBe(true);
