@@ -233,6 +233,26 @@ test.describe("Stage shell on desktop", () => {
     });
   }
 
+  test("View closes on an outside press and leaves focus on the pressed control", async ({
+    page,
+  }) => {
+    await openProject(page);
+    const popover = await openViewPopover(page);
+    const edit = stageTab(page, "edit");
+    await expect(edit).toBeVisible();
+    const tab = await edit.boundingBox();
+    expect(tab).not.toBeNull();
+    await page.mouse.move(tab!.x + tab!.width / 2, tab!.y + tab!.height / 2);
+    await page.mouse.down();
+    try {
+      await expect(popover).toHaveCount(0);
+      await expect(edit).toBeFocused();
+    } finally {
+      await page.mouse.up();
+    }
+    await expect(edit).toBeFocused();
+  });
+
   test("keeps the Tools corner independent when folding and Script focus overlap", async ({
     page,
   }) => {

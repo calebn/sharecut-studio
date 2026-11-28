@@ -176,7 +176,8 @@ test.describe("record room on a phone", () => {
           await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
           await expectPhoneRoom(guest, titleText, width);
           await expectOwnTile(guest, "Ava");
-          await roomTile(guest, "Ava").getByRole("button").tap();
+          const devicesOpener = roomTile(guest, "Ava").getByRole("button");
+          await devicesOpener.tap();
           await expect(
             guest.getByRole("dialog", { name: "Devices" }),
           ).toBeVisible();
@@ -184,6 +185,7 @@ test.describe("record room on a phone", () => {
           await expect(
             guest.getByRole("dialog", { name: "Devices" }),
           ).toBeHidden();
+          await expect(devicesOpener).toBeFocused();
 
           const leave = guest.getByRole("button", { name: "Leave room" });
           await expect(leave).toHaveAttribute("aria-disabled", "true");
