@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
@@ -18,6 +19,7 @@ import { minimalProject, sampleTrack } from "../test/fixtures";
 import { stubRaf } from "../test/raf";
 import type { CreateView, HitRouter } from "./hitRouting";
 import { TimelineCreateMenu } from "./TimelineCreateMenu";
+import { TimelinePhysicalOverlays } from "./TimelinePhysicalOverlays";
 import type { CreateMenuPlace } from "./touchGrammar";
 
 const executePointerCommand = vi.hoisted(() => vi.fn());
@@ -103,6 +105,60 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clearRegisteredCommands();
+});
+
+it("switches an open Create overlay to the phone sheet and remeasures on desktop reopen", async () => {
+  let scrollerBox = new DOMRect(0, 0, 600, 700);
+  const measure = vi.fn(() => scrollerBox);
+  const create = { view: { ...view, origin: { x: 300, y: 500 } }, place };
+  function Frame({ phone, open }: { phone: boolean; open: boolean }) {
+    const scroller = useRef<HTMLDivElement>(null);
+    const lanes = useRef<HTMLDivElement>(null);
+    return (
+      <>
+        <div
+          ref={(node) => {
+            scroller.current = node;
+            if (node) node.getBoundingClientRect = measure;
+          }}
+        />
+        <TimelinePhysicalOverlays
+          scrollerRef={scroller}
+          lanesRef={lanes}
+          chooser={null}
+          create={open ? create : null}
+          detent={null}
+          router={router}
+          phone={phone}
+        />
+      </>
+    );
+  }
+
+  const width = vi
+    .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+    .mockReturnValue(220);
+  try {
+    const { rerender } = render(<Frame phone={false} open />);
+    expect(await screen.findByRole("menu")).toHaveStyle({ left: "190px" });
+    measure.mockClear();
+
+    rerender(<Frame phone open />);
+    expect(
+      await screen.findByRole("dialog", { name: /Create at/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(measure).not.toHaveBeenCalled();
+
+    rerender(<Frame phone={false} open={false} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    scrollerBox = new DOMRect(0, 0, 300, 700);
+    rerender(<Frame phone={false} open />);
+    expect(await screen.findByRole("menu")).toHaveStyle({ left: "64px" });
+  } finally {
+    width.mockRestore();
+  }
 });
 
 describe("TimelineCreateMenu popover form", () => {
