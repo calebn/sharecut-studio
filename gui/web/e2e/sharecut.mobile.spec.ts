@@ -260,6 +260,70 @@ test.describe("ShareCut Studio mobile smoke", () => {
     expect(writes).toEqual([]);
   });
 
+  test.describe("coarse-pointer phone", () => {
+    test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+    test("track More Escape retains the coarse-pointer phone Inspector", async ({
+      page,
+    }) => {
+      await openProject(page, e2eProjectPath);
+      await openPhoneTimeline(page);
+      const sheet = page.getByRole("dialog", { name: "Inspector" });
+      await page.locator(TRACK_HEADER_SELECT).first().tap();
+      await expect(sheet).toBeVisible();
+      expect(
+        await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+      ).toBe(true);
+      await expectTrackSheetTouchTargets(page);
+      await expectPageAxeClean(page);
+      const more = sheet
+        .locator(".sys-actions--dock")
+        .getByRole("button", { name: "More", exact: true });
+      const selected = page.locator(".sys-track[data-selected]");
+      await expect(selected).toHaveCount(1);
+      const trackTitle = sheet.getByRole("textbox", {
+        name: "Name",
+        exact: true,
+      });
+      const name = await trackTitle.inputValue();
+      await expect(selected).toHaveAttribute("data-presence-anchor", /^track:/);
+      const trackIdentity = (await selected.getAttribute(
+        "data-presence-anchor",
+      ))!;
+      const writes: string[] = [];
+      page.on("request", (request) => {
+        if (
+          request.method() === "POST" &&
+          new URL(request.url()).pathname === "/api/document/command"
+        )
+          writes.push(request.postData() ?? "");
+      });
+      await more.tap();
+      await expect(
+        page.getByRole("menuitem", { name: "Move track down" }),
+      ).toBeEnabled();
+      await expect(
+        page.getByRole("menuitem", { name: "Move track up" }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("menuitem", { name: "Smooth all joins" }),
+      ).toBeEnabled();
+      const moveDown = page.getByRole("menuitem", { name: "Move track down" });
+      await moveDown.focus();
+      await expect(moveDown).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".ui-menu-panel")).toHaveCount(0);
+      await expect(sheet).toBeVisible();
+      await expect(trackTitle).toHaveValue(name);
+      await expect(selected).toHaveCount(1);
+      await expect(selected).toHaveAttribute(
+        "data-presence-anchor",
+        trackIdentity,
+      );
+      await expect(more).toBeFocused();
+      expect(writes).toEqual([]);
+    });
+  });
+
   test.describe("fixed playhead at fit zoom (#385)", () => {
     test.use({ viewport: { width: 375, height: 812 } });
 

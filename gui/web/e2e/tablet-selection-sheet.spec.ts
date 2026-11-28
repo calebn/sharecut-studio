@@ -20,9 +20,21 @@ for (const tablet of TABLETS) {
     await page.locator(".lane-row .clip-block").first().click();
     await expect(page.locator(".clip-block.selected").first()).toBeVisible();
     await inspectSelection(page);
+    const inspector = page.getByRole("dialog", {
+      name: "Inspector",
+      exact: true,
+    });
+    await expect(inspector).toBeVisible();
+    await inspector.getByRole("button", { name: "Close", exact: true }).tap();
+    await expect(inspector).toHaveCount(0);
+    await expect(page.locator(".clip-block.selected").first()).toBeVisible();
     await expect(
-      page.getByRole("dialog", { name: "Inspector", exact: true }),
-    ).toBeVisible();
+      page
+        .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+        .getByRole("button", { name: "Inspect", exact: true }),
+    ).toBeFocused();
+    await inspectSelection(page);
+    await expect(inspector).toBeVisible();
   });
 
   test(`a word tapped on a ${tablet.name} tablet is one range and opens the Inspector card`, async ({
